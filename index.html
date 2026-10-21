@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contrôle des présences</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header>
+    <img src="logo-content-camp.png" alt="Logo" id="logo">
+    <h1>Shooting photo</h1>
+  </header>
+  <main>
+    <div class="import-section">
+      <label for="fileInput">Importer le fichier Excel</label>
+      <input type="file" id="fileInput" accept=".xlsx, .xls, .csv">
+    </div>
+    <input type="text" id="searchInput" placeholder="Rechercher un participant...">
+    <div id="participantsList"></div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
