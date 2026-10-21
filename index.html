@@ -653,7 +653,22 @@
     };
 
     document.getElementById('btn-export-xls').onclick = () => {
-      const worksheet = XLSX.utils.json_to_sheet(participants);
+      // Nettoyage des données pour l'export Excel
+      const cleanData = participants.map(p => ({
+        "Prénom": p.Prenom || "",
+        "Nom": p.Nom || "",
+        "Date": p.Date || "",
+        "Heure": p.Heure || "",
+        "Téléphone": p.Telephone || "",
+        "Mail": p.Mail || "",
+        "Rue": p.Rue || "",
+        "N°": p.Numero || "",
+        "Code Postal": p.CP || "",
+        "Localité": p.Localite || "",
+        "Validé": p.valide ? "Oui" : "Non"
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(cleanData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Participants");
       XLSX.writeFile(workbook, "export_shooting_" + activeDate + ".xlsx");
