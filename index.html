@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Vérification des infos</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0b57d0;
+      color: #ffffff;
+      margin: 0;
+      padding: 0;
+      padding-bottom: 150px; /* Space for bottom search & add button */
+      box-sizing: border-box;
+    }
+    #admin-trigger {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 100px;
+      height: 100px;
+      z-index: 1000;
+      background: transparent;
+    }
+    header {
+      text-align: center;
+      padding: 20px;
+    }
+    #logo {
+      max-width: 150px;
+      margin-bottom: 10px;
+    }
+    #date-display {
+      font-size: 1.1em;
+      font-weight: bold;
+      opacity: 0.9;
+    }
+    main {
+      padding: 0 15px;
+    }
+    .participant-card {
+      background-color: rgba(255, 255, 255, 0.15);
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .participant-card.valide {
+      background-color: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.5);
+      text-decoration: line-through;
+    }
+    .participant-info strong {
+      display: block;
+      font-size: 1.1em;
+    }
+    .participant-time {
+      font-size: 0.9em;
+      opacity: 0.8;
+    }
+    #search-container {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background-color: rgba(11, 87, 208, 0.95);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 15px;
+      box-sizing: border-box;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 500;
+    }
+    #searchInput {
+      width: 100%;
+      padding: 15px;
+      border-radius: 20px;
+      border: none;
+      font-size: 16px;
+      background-color: #ffffff;
+      color: #333;
+      box-sizing: border-box;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100vh;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .modal.active {
+      display: flex;
+    }
+    .modal-content {
+      background-color: #ffffff;
+      color: #333;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 16px;
+      padding: 20px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-content h2, .modal-content h3 {
+      margin-top: 0;
+      color: #0b57d0;
+    }
+    .modal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    button {
+      padding: 15px;
+      border-radius: 10px;
+      border: none;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+    }
+    .btn-primary {
+      background-color: #0b57d0;
+      color: #ffffff;
+    }
+    .btn-secondary {
+      background-color: #e0e0e0;
+      color: #333;
+    }
+    .btn-text {
+      background-color: transparent;
+      color: #666;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 10px;
+      font-weight: bold;
+      font-size: 0.9em;
+    }
+    label input, label select {
+      margin-top: 5px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-family: inherit;
+      font-size: 16px; /* Prevents auto-zoom on iOS */
+    }
+    .address-grid {
+      display: grid;
+      grid-template-columns: 3fr 1fr;
+      gap: 10px;
+    }
+    hr {
+      border: 0;
+      border-top: 1px solid #eee;
+      margin: 20px 0;
+    }
+    /* PIN Pad Styles */
+    .pin-display {
+      font-size: 2em;
+      text-align: center;
+      letter-spacing: 10px;
+      margin-bottom: 20px;
+      height: 40px;
+    }
+    .pin-pad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      max-width: 300px;
+      margin: 0 auto;
+    }
+    .pin-pad button {
+      padding: 20px;
+      font-size: 1.5em;
+      border-radius: 50%;
+      aspect-ratio: 1 / 1;
+      background-color: #f0f0f0;
+      color: #333;
+    }
+    .pin-pad button.action-btn {
+      font-size: 1em;
+      background-color: transparent;
+      border-radius: 10px;
+    }
+    /* Toast Notification */
+    #toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #4CAF50;
+      color: white;
+      padding: 15px 30px;
+      border-radius: 25px;
+      z-index: 3000;
+      display: none;
+      font-weight: bold;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div id="admin-trigger"></div>
+  
+  <div id="toast">Message</div>
+
+  <header>
+    <img src="logo-content-camp.png" alt="Logo" id="logo" onerror="this.style.display='none'">
+    <div id="date-display">Shooting photo du XX.XX</div>
+  </header>
+  
+  <main id="main-content">
+    <div id="participants-list"></div>
+  </main>
+  
+  <div id="search-container">
+    <button id="btn-add-search" class="btn-primary" style="display: none;">Ajouter ce participant</button>
+    <input type="text" id="searchInput" placeholder="Rechercher un nom...">
+  </div>
+
+  <!-- Profil Modal -->
+  <div id="profile-modal" class="modal">
+    <div class="modal-content">
+      <h2 id="profile-name">nom prénom</h2>
+      <p><strong>Heure :</strong> <span id="profile-time"></span></p>
+      <p><strong>Téléphone :</strong> <span id="profile-phone"></span></p>
+      <p><strong>Email :</strong> <span id="profile-email"></span></p>
+      <p><strong>Adresse :</strong> <span id="profile-address"></span></p>
+      <div class="modal-actions">
+        <button id="btn-validate" class="btn-primary">Confirmer les informations</button>
+        <button id="btn-edit" class="btn-secondary">Modifier les infos</button>
+        <button class="btn-text close-modal" data-target="profile-modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="edit-modal" class="modal">
+    <div class="modal-content">
+      <h2>Modifier les informations</h2>
+      <label>Prénom <input type="text" id="edit-prenom"></label>
+      <label>Nom <input type="text" id="edit-nom"></label>
+      <label>Heure <input type="time" id="edit-heure"></label>
+      <label>Téléphone <input type="tel" id="edit-phone" placeholder="ex: 0791234567 ou +41791234567"></label>
+      <label>Email <input type="email" id="edit-email"></label>
+      
+      <div class="address-grid">
+        <label>Rue <input type="text" id="edit-rue"></label>
+        <label>N° <input type="text" inputmode="numeric" pattern="[0-9]*" id="edit-numero"></label>
+      </div>
+      <div class="address-grid">
+        <label>Code Postal <input type="text" inputmode="numeric" pattern="[0-9]*" id="edit-npa"></label>
+        <label>Localité <input type="text" id="edit-localite"></label>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btn-save-edit" class="btn-primary">Enregistrer</button>
+        <button class="btn-text close-modal" data-target="edit-modal">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN Pad Modal -->
+  <div id="pin-modal" class="modal">
+    <div class="modal-content">
+      <h2 style="text-align: center;">Code administrateur</h2>
+      <div class="pin-display" id="pin-display"></div>
+      <div class="pin-pad" id="pin-pad">
+        <button data-val="1">1</button>
+        <button data-val="2">2</button>
+        <button data-val="3">3</button>
+        <button data-val="4">4</button>
+        <button data-val="5">5</button>
+        <button data-val="6">6</button>
+        <button data-val="7">7</button>
+        <button data-val="8">8</button>
+        <button data-val="9">9</button>
+        <button class="action-btn close-modal" data-target="pin-modal">Annuler</button>
+        <button data-val="0">0</button>
+        <button class="action-btn" id="btn-pin-back">Effacer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Modal -->
+  <div id="admin-modal" class="modal">
+    <div class="modal-content">
+      <h2>Menu administrateur</h2>
+      <label>Date du shooting : 
+        <select id="admin-date-select">
+          <option value="27.10">27.10</option>
+          <option value="29.10">29.10</option>
+          <option value="31.10">31.10</option>
+          <option value="04.11">04.11</option>
+          <option value="07.11">07.11</option>
+        </select>
+      </label>
+      <hr>
+      <h3>Importer des données (Excel)</h3>
+      <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" style="width: 100%;">
+      <hr>
+      <h3>Exporter la sauvegarde</h3>
+      <button id="btn-export" class="btn-secondary">Télécharger (.json)</button>
+      <hr>
+      <button class="btn-text close-modal" data-target="admin-modal">Fermer le menu</button>
+    </div>
+  </div>
+
+  <script>
+    const VALID_DATES = ["27.10", "29.10", "31.10", "04.11", "07.11"];
+    let participants = [];
+    let activeDate = VALID_DATES[0];
+    let currentParticipantId = null;
+    let currentPin = "";
+
+    window.onload = function() {
+      initDate();
+      loadData();
+      renderList();
+      setupModals();
+      setupPinPad();
+    };
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.innerText = message;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+
+    function initDate() {
+      const d = new Date();
+      const todayStr = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0');
+      if (VALID_DATES.includes(todayStr)) {
+        activeDate = todayStr;
+      }
+    }
+
+    function loadData() {
+      const saved = localStorage.getItem('shooting_participants');
+      if (saved) participants = JSON.parse(saved);
+      
+      const savedDate = localStorage.getItem('shooting_date');
+      if (savedDate && VALID_DATES.includes(savedDate)) {
+        activeDate = savedDate;
+      }
+      document.getElementById('admin-date-select').value = activeDate;
+    }
+
+    function saveData() {
+      localStorage.setItem('shooting_participants', JSON.stringify(participants));
+    }
+
+    function renderList(searchQuery = "") {
+      const listContainer = document.getElementById('participants-list');
+      const btnAdd = document.getElementById('btn-add-search');
+      listContainer.innerHTML = '';
+      
+      document.getElementById('date-display').innerText = "Shooting photo du " + activeDate;
+
+      let filtered = participants.filter(p => p.Date === activeDate || !p.Date);
+      let exactMatchFound = false;
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        filtered = filtered.filter(p => {
+          const match = (p.Nom && p.Nom.toLowerCase().includes(q)) || (p.Prenom && p.Prenom.toLowerCase().includes(q));
+          if (match) exactMatchFound = true;
+          return match;
+        });
+      }
+
+      filtered.sort((a, b) => {
+        if (a.valide !== b.valide) return a.valide ? 1 : -1;
+        return (a.Heure || "23:59").localeCompare(b.Heure || "23:59");
+      });
+
+      btnAdd.style.display = (searchQuery !== "" && !exactMatchFound) ? 'block' : 'none';
+
+      filtered.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'participant-card' + (p.valide ? ' valide' : '');
+        div.onclick = () => openProfile(p.id);
+        div.innerHTML = `
+          <div class="participant-info">
+            <strong>${p.Prenom || ''} ${p.Nom || ''}</strong>
+            <span class="participant-time">${p.Heure || 'Heure non définie'}</span>
+          </div>
+        `;
+        listContainer.appendChild(div);
+      });
+    }
+
+    // Modal Handling
+    function setupModals() {
+      document.querySelectorAll('.close-modal').forEach(btn => {
+        btn.onclick = (e) => {
+          const targetId = e.target.getAttribute('data-target');
+          document.getElementById(targetId).classList.remove('active');
+          if(targetId === 'edit-modal') openProfile(currentParticipantId); // Reopen profile if cancel edit
+        };
+      });
+    }
+
+    // Search and Add
+    document.getElementById('searchInput').addEventListener('input', (e) => renderList(e.target.value));
+
+    document.getElementById('btn-add-search').addEventListener('click', function() {
+      const query = document.getElementById('searchInput').value.trim();
+      let nom = "", prenom = query;
+      if (query.includes(' ')) {
+        const parts = query.split(' ');
+        nom = parts.pop();
+        prenom = parts.join(' ');
+      }
+      
+      const newP = {
+        id: Date.now().toString(),
+        Prenom: prenom, Nom: nom, Date: activeDate, Heure: "",
+        Telephone: "", Mail: "", Rue: "", Numero: "", Npa: "", Localite: "",
+        valide: false
+      };
+      
+      participants.push(newP);
+      saveData();
+      document.getElementById('searchInput').value = "";
+      renderList();
+      openProfile(newP.id);
+    });
+
+    // Profiles
+    function openProfile(id) {
+      currentParticipantId = id;
+      const p = participants.find(x => x.id === id);
+      if (!p) return;
+      
+      document.getElementById('profile-name').innerText = `${p.Prenom || ''} ${p.Nom || ''}`;
+      document.getElementById('profile-time').innerText = p.Heure || '-';
+      document.getElementById('profile-phone').innerText = p.Telephone || '-';
+      document.getElementById('profile-email').innerText = p.Mail || '-';
+      
+      const fullAddress = [p.Rue, p.Numero, p.Npa, p.Localite].filter(Boolean).join(' ');
+      document.getElementById('profile-address').innerText = fullAddress || (p.Adresse || '-');
+      
+      const btnVal = document.getElementById('btn-validate');
+      btnVal.innerText = p.valide ? "Annuler la confirmation" : "Confirmer les informations";
+      btnVal.style.backgroundColor = p.valide ? "#d32f2f" : "#0b57d0";
+      
+      document.getElementById('profile-modal').classList.add('active');
+    }
+
+    document.getElementById('btn-validate').onclick = () => {
+      const p = participants.find(x => x.id === currentParticipantId);
+      if (p) {
+        p.valide = !p.valide;
+        saveData();
+        renderList(document.getElementById('searchInput').value);
+      }
+      document.getElementById('profile-modal').classList.remove('active');
+    };
+
+    document.getElementById('btn-edit').onclick = () => {
+      const p = participants.find(x => x.id === currentParticipantId);
+      if (!p) return;
+      
+      document.getElementById('edit-prenom').value = p.Prenom || '';
+      document.getElementById('edit-nom').value = p.Nom || '';
+      document.getElementById('edit-heure').value = p.Heure || '';
+      document.getElementById('edit-phone').value = p.Telephone || '';
+      document.getElementById('edit-email').value = p.Mail || '';
+      document.getElementById('edit-rue').value = p.Rue || '';
+      document.getElementById('edit-numero').value = p.Numero || '';
+      document.getElementById('edit-npa').value = p.Npa || '';
+      document.getElementById('edit-localite').value = p.Localite || '';
+      
+      document.getElementById('profile-modal').classList.remove('active');
+      document.getElementById('edit-modal').classList.add('active');
+    };
+
+    document.getElementById('btn-save-edit').onclick = () => {
+      // Validations
+      let errs = [];
+      const phone = document.getElementById('edit-phone').value.replace(/\s/g, '');
+      if (phone && !/^(\+\d{2}\d{9}|\d{10})$/.test(phone)) {
+        errs.push("Le téléphone doit contenir 10 chiffres (ex: 0791234567) ou +XX suivi de 9 chiffres.");
+      }
+      const email = document.getElementById('edit-email').value;
+      if (email && !email.includes('@')) {
+        errs.push("L'adresse email doit contenir un symbole @.");
+      }
+      
+      if (errs.length > 0) {
+        alert(errs.join('\n\n'));
+        return;
+      }
+
+      const p = participants.find(x => x.id === currentParticipantId);
+      if (p) {
+        p.Prenom = document.getElementById('edit-prenom').value;
+        p.Nom = document.getElementById('edit-nom').value;
+        p.Heure = document.getElementById('edit-heure').value;
+        p.Telephone = document.getElementById('edit-phone').value;
+        p.Mail = document.getElementById('edit-email').value;
+        p.Rue = document.getElementById('edit-rue').value;
+        p.Numero = document.getElementById('edit-numero').value;
+        p.Npa = document.getElementById('edit-npa').value;
+        p.Localite = document.getElementById('edit-localite').value;
+        p.Adresse = ""; // Reset old unformatted address
+        saveData();
+        renderList(document.getElementById('searchInput').value);
+      }
+      document.getElementById('edit-modal').classList.remove('active');
+      openProfile(currentParticipantId);
+    };
+
+    // Admin & PIN Pad
+    let tapCount = 0;
+    let tapTimer;
+    document.getElementById('admin-trigger').addEventListener('click', () => {
+      tapCount++;
+      clearTimeout(tapTimer);
+      if (tapCount >= 5) {
+        tapCount = 0;
+        currentPin = "";
+        updatePinDisplay();
+        document.getElementById('pin-modal').classList.add('active');
+      }
+      tapTimer = setTimeout(() => { tapCount = 0; }, 1500);
+    });
+
+    function setupPinPad() {
+      document.querySelectorAll('#pin-pad button[data-val]').forEach(btn => {
+        btn.onclick = () => {
+          if (currentPin.length < 4) {
+            currentPin += btn.getAttribute('data-val');
+            updatePinDisplay();
+            if (currentPin.length === 4) checkPin();
+          }
+        };
+      });
+      document.getElementById('btn-pin-back').onclick = () => {
+        currentPin = currentPin.slice(0, -1);
+        updatePinDisplay();
+      };
+    }
+
+    function updatePinDisplay() {
+      const chars = currentPin.padEnd(4, '_').split('');
+      document.getElementById('pin-display').innerText = chars.join(' ');
+    }
+
+    function checkPin() {
+      if (currentPin === "1848") {
+        setTimeout(() => {
+          document.getElementById('pin-modal').classList.remove('active');
+          document.getElementById('admin-modal').classList.add('active');
+        }, 200);
+      } else {
+        setTimeout(() => {
+          alert("Code incorrect");
+          currentPin = "";
+          updatePinDisplay();
+        }, 100);
+      }
+    }
+
+    document.getElementById('admin-date-select').onchange = (e) => {
+      activeDate = e.target.value;
+      localStorage.setItem('shooting_date', activeDate);
+      renderList();
+      showToast("Date changée pour le " + activeDate);
+    };
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(worksheet);
+        
+        participants = json.map((row, index) => ({
+          id: Date.now().toString() + "-" + index,
+          Prenom: row.Prenom || row.Prénom || "",
+          Nom: row.Nom || "",
+          Date: row.Date || row.Jour || activeDate,
+          Heure: row.Heure || row.Horaire || "",
+          Telephone: row.Telephone || row.Téléphone || row.Tel || "",
+          Mail: row.Mail || row.Email || "",
+          Rue: row.Rue || "", Numero: row.Numero || row["N°"] || "", Npa: row.Npa || row.NPA || row["Code Postal"] || "", Localite: row.Localite || row.Localité || "",
+          Adresse: row.Adresse || row.Adresse_postale || "", // Fallback
+          valide: false
+        }));
+        
+        saveData();
+        renderList();
+        showToast("Import réussi : " + participants.length + " personnes");
+        document.getElementById('fileInput').value = ""; // Reset
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    document.getElementById('btn-export').onclick = () => {
+      const dataStr = JSON.stringify(participants, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const filename = "sauvegarde_shooting_" + activeDate + ".json";
+      
+      // Fallback iOS Safari Download
+      if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+          window.navigator.msSaveOrOpenBlob(blob, filename);
+      } else {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+      }
+      showToast("Téléchargement lancé !");
+    };
+  </script>
+</body>
+</html>
