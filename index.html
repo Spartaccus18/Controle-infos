@@ -3,18 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0b57d0">
   <title>Vérification des infos</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <style>
-    body {
+    /* Reset & Base Styles */
+    html, body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #0b57d0;
+      background-color: #0b57d0 !important; /* Force background to prevent black boxes */
       color: #ffffff;
       margin: 0;
       padding: 0;
-      padding-bottom: 150px; /* Space for bottom search & add button */
+      min-height: 100vh;
       box-sizing: border-box;
     }
+    
     #admin-trigger {
       position: absolute;
       top: 0;
@@ -37,9 +40,13 @@
       font-weight: bold;
       opacity: 0.9;
     }
+    
     main {
       padding: 0 15px;
+      padding-bottom: 160px; /* Space for search bar + button */
     }
+    
+    /* Participant Cards */
     .participant-card {
       background-color: rgba(255, 255, 255, 0.15);
       padding: 15px;
@@ -63,14 +70,14 @@
       font-size: 0.9em;
       opacity: 0.8;
     }
+    
+    /* Search Bar & Add Button Area */
     #search-container {
       position: fixed;
       bottom: 0;
       left: 0;
       width: 100%;
-      background-color: rgba(11, 87, 208, 0.95);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background-color: rgba(11, 87, 208, 0.98); /* Less transparent to hide background */
       padding: 15px;
       box-sizing: border-box;
       border-top: 1px solid rgba(255, 255, 255, 0.2);
@@ -78,7 +85,17 @@
       flex-direction: column;
       gap: 10px;
       z-index: 500;
+      padding-bottom: env(safe-area-inset-bottom, 15px); /* iOS Safe Area */
     }
+    
+    #btn-add-search {
+      background-color: #ffffff;
+      color: #0b57d0;
+      border: 2px solid #ffffff;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      font-weight: bold;
+    }
+    
     #searchInput {
       width: 100%;
       padding: 15px;
@@ -89,11 +106,13 @@
       color: #333;
       box-sizing: border-box;
     }
+    
+    /* Modals */
     .modal {
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100%; height: 100vh;
-      background-color: rgba(0, 0, 0, 0.8);
+      background-color: rgba(0, 0, 0, 0.85); /* Slightly darker */
       z-index: 2000;
       justify-content: center;
       align-items: center;
@@ -123,6 +142,8 @@
       gap: 10px;
       margin-top: 20px;
     }
+    
+    /* Buttons */
     button {
       padding: 15px;
       border-radius: 10px;
@@ -132,18 +153,12 @@
       cursor: pointer;
       width: 100%;
     }
-    .btn-primary {
-      background-color: #0b57d0;
-      color: #ffffff;
-    }
-    .btn-secondary {
-      background-color: #e0e0e0;
-      color: #333;
-    }
-    .btn-text {
-      background-color: transparent;
-      color: #666;
-    }
+    .btn-primary { background-color: #0b57d0; color: #ffffff; }
+    .btn-secondary { background-color: #e0e0e0; color: #333; }
+    .btn-danger { background-color: #d32f2f; color: #ffffff; }
+    .btn-text { background-color: transparent; color: #666; }
+    
+    /* Form Fields */
     label {
       display: flex;
       flex-direction: column;
@@ -159,44 +174,61 @@
       font-family: inherit;
       font-size: 16px; /* Prevents auto-zoom on iOS */
     }
-    .address-grid {
+    
+    /* Grid for Addresses */
+    .address-grid-top {
       display: grid;
-      grid-template-columns: 3fr 1fr;
+      grid-template-columns: 3fr 1fr; /* Rue large, N° petit */
       gap: 10px;
     }
+    .address-grid-bottom {
+      display: grid;
+      grid-template-columns: 1fr 2fr; /* CP petit, Localité large */
+      gap: 10px;
+    }
+    
     hr {
       border: 0;
       border-top: 1px solid #eee;
       margin: 20px 0;
     }
+    
     /* PIN Pad Styles */
     .pin-display {
       font-size: 2em;
       text-align: center;
-      letter-spacing: 10px;
+      letter-spacing: 15px;
       margin-bottom: 20px;
       height: 40px;
+      color: #0b57d0;
     }
     .pin-pad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 15px;
-      max-width: 300px;
+      max-width: 280px;
       margin: 0 auto;
+      justify-items: center; /* Center items in grid cells */
     }
     .pin-pad button {
-      padding: 20px;
+      width: 75px; /* Fixed width */
+      height: 75px; /* Fixed height */
+      border-radius: 50%; /* Perfect circle */
       font-size: 1.5em;
-      border-radius: 50%;
-      aspect-ratio: 1 / 1;
       background-color: #f0f0f0;
       color: #333;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .pin-pad button.action-btn {
       font-size: 1em;
       background-color: transparent;
       border-radius: 10px;
+      height: auto;
     }
+    
     /* Toast Notification */
     #toast {
       position: fixed;
@@ -215,6 +247,7 @@
   </style>
 </head>
 <body>
+  <!-- Zone invisible pour déclencher le menu admin -->
   <div id="admin-trigger"></div>
   
   <div id="toast">Message</div>
@@ -228,12 +261,13 @@
     <div id="participants-list"></div>
   </main>
   
+  <!-- Zone de recherche en bas -->
   <div id="search-container">
-    <button id="btn-add-search" class="btn-primary" style="display: none;">Ajouter ce participant</button>
+    <button id="btn-add-search" style="display: none;">Ajouter ce participant</button>
     <input type="text" id="searchInput" placeholder="Rechercher un nom...">
   </div>
 
-  <!-- Profil Modal -->
+  <!-- Modal : Profil -->
   <div id="profile-modal" class="modal">
     <div class="modal-content">
       <h2 id="profile-name">nom prénom</h2>
@@ -249,7 +283,7 @@
     </div>
   </div>
 
-  <!-- Edit Modal -->
+  <!-- Modal : Édition -->
   <div id="edit-modal" class="modal">
     <div class="modal-content">
       <h2>Modifier les informations</h2>
@@ -259,12 +293,12 @@
       <label>Téléphone <input type="tel" id="edit-phone" placeholder="ex: 0791234567 ou +41791234567"></label>
       <label>Email <input type="email" id="edit-email"></label>
       
-      <div class="address-grid">
+      <div class="address-grid-top">
         <label>Rue <input type="text" id="edit-rue"></label>
-        <label>N° <input type="text" inputmode="numeric" pattern="[0-9]*" id="edit-numero"></label>
+        <label>N° <input type="text" id="edit-numero" placeholder="ex: 12A"></label>
       </div>
-      <div class="address-grid">
-        <label>Code Postal <input type="text" inputmode="numeric" pattern="[0-9]*" id="edit-npa"></label>
+      <div class="address-grid-bottom">
+        <label>Code Postal <input type="text" inputmode="numeric" id="edit-cp" placeholder="ex: 1000"></label>
         <label>Localité <input type="text" id="edit-localite"></label>
       </div>
 
@@ -275,7 +309,7 @@
     </div>
   </div>
 
-  <!-- PIN Pad Modal -->
+  <!-- Modal : PIN Pad (Façon iOS) -->
   <div id="pin-modal" class="modal">
     <div class="modal-content">
       <h2 style="text-align: center;">Code administrateur</h2>
@@ -292,15 +326,16 @@
         <button data-val="9">9</button>
         <button class="action-btn close-modal" data-target="pin-modal">Annuler</button>
         <button data-val="0">0</button>
-        <button class="action-btn" id="btn-pin-back">Effacer</button>
+        <button class="action-btn" id="btn-pin-back">Ret</button>
       </div>
     </div>
   </div>
 
-  <!-- Admin Modal -->
+  <!-- Modal : Admin -->
   <div id="admin-modal" class="modal">
     <div class="modal-content">
       <h2>Menu administrateur</h2>
+      
       <label>Date du shooting : 
         <select id="admin-date-select">
           <option value="27.10">27.10</option>
@@ -311,16 +346,28 @@
         </select>
       </label>
       <hr>
-      <h3>Importer des données (Excel)</h3>
+      
+      <h3>Importer Liste Initiale (Excel)</h3>
       <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" style="width: 100%;">
       <hr>
-      <h3>Exporter la sauvegarde</h3>
-      <button id="btn-export" class="btn-secondary">Télécharger (.json)</button>
+      
+      <h3>Sauvegarde</h3>
+      <button id="btn-export" class="btn-primary" style="margin-bottom: 10px;">Exporter (Télécharger .json)</button>
+      
+      <label>Restaurer depuis un fichier .json :
+        <input type="file" id="restoreInput" accept=".json" style="width: 100%;">
+      </label>
       <hr>
+
+      <h3>Zone de danger</h3>
+      <button id="btn-reset" class="btn-danger">Réinitialiser toutes les données</button>
+      <hr>
+
       <button class="btn-text close-modal" data-target="admin-modal">Fermer le menu</button>
     </div>
   </div>
 
+  <!-- Application Logic -->
   <script>
     const VALID_DATES = ["27.10", "29.10", "31.10", "04.11", "07.11"];
     let participants = [];
@@ -385,6 +432,7 @@
         });
       }
 
+      // Tri chronologique, et les validés à la fin
       filtered.sort((a, b) => {
         if (a.valide !== b.valide) return a.valide ? 1 : -1;
         return (a.Heure || "23:59").localeCompare(b.Heure || "23:59");
@@ -412,12 +460,12 @@
         btn.onclick = (e) => {
           const targetId = e.target.getAttribute('data-target');
           document.getElementById(targetId).classList.remove('active');
-          if(targetId === 'edit-modal') openProfile(currentParticipantId); // Reopen profile if cancel edit
+          if(targetId === 'edit-modal') openProfile(currentParticipantId);
         };
       });
     }
 
-    // Search and Add
+    // Recherche et Ajout Rapide
     document.getElementById('searchInput').addEventListener('input', (e) => renderList(e.target.value));
 
     document.getElementById('btn-add-search').addEventListener('click', function() {
@@ -432,7 +480,7 @@
       const newP = {
         id: Date.now().toString(),
         Prenom: prenom, Nom: nom, Date: activeDate, Heure: "",
-        Telephone: "", Mail: "", Rue: "", Numero: "", Npa: "", Localite: "",
+        Telephone: "", Mail: "", Rue: "", Numero: "", CP: "", Localite: "",
         valide: false
       };
       
@@ -443,7 +491,7 @@
       openProfile(newP.id);
     });
 
-    // Profiles
+    // Profils
     function openProfile(id) {
       currentParticipantId = id;
       const p = participants.find(x => x.id === id);
@@ -454,7 +502,7 @@
       document.getElementById('profile-phone').innerText = p.Telephone || '-';
       document.getElementById('profile-email').innerText = p.Mail || '-';
       
-      const fullAddress = [p.Rue, p.Numero, p.Npa, p.Localite].filter(Boolean).join(' ');
+      const fullAddress = [p.Rue, p.Numero, p.CP, p.Localite].filter(Boolean).join(' ');
       document.getElementById('profile-address').innerText = fullAddress || (p.Adresse || '-');
       
       const btnVal = document.getElementById('btn-validate');
@@ -485,7 +533,7 @@
       document.getElementById('edit-email').value = p.Mail || '';
       document.getElementById('edit-rue').value = p.Rue || '';
       document.getElementById('edit-numero').value = p.Numero || '';
-      document.getElementById('edit-npa').value = p.Npa || '';
+      document.getElementById('edit-cp').value = p.CP || '';
       document.getElementById('edit-localite').value = p.Localite || '';
       
       document.getElementById('profile-modal').classList.remove('active');
@@ -493,15 +541,30 @@
     };
 
     document.getElementById('btn-save-edit').onclick = () => {
-      // Validations
       let errs = [];
+      
+      // Validation Téléphone
       const phone = document.getElementById('edit-phone').value.replace(/\s/g, '');
       if (phone && !/^(\+\d{2}\d{9}|\d{10})$/.test(phone)) {
         errs.push("Le téléphone doit contenir 10 chiffres (ex: 0791234567) ou +XX suivi de 9 chiffres.");
       }
+      
+      // Validation Email
       const email = document.getElementById('edit-email').value;
       if (email && !email.includes('@')) {
         errs.push("L'adresse email doit contenir un symbole @.");
+      }
+
+      // Validation Numéro (1 à 3 chiffres + lettre optionnelle)
+      const numero = document.getElementById('edit-numero').value.trim();
+      if (numero && !/^\d{1,3}[a-zA-Z]?$/.test(numero)) {
+        errs.push("Le numéro de rue doit contenir entre 1 et 3 chiffres, avec éventuellement une lettre (ex: 12, 12A).");
+      }
+
+      // Validation Code Postal (Exactement 4 chiffres)
+      const cp = document.getElementById('edit-cp').value.trim();
+      if (cp && !/^\d{4}$/.test(cp)) {
+        errs.push("Le Code Postal doit contenir exactement 4 chiffres.");
       }
       
       if (errs.length > 0) {
@@ -518,9 +581,9 @@
         p.Mail = document.getElementById('edit-email').value;
         p.Rue = document.getElementById('edit-rue').value;
         p.Numero = document.getElementById('edit-numero').value;
-        p.Npa = document.getElementById('edit-npa').value;
+        p.CP = document.getElementById('edit-cp').value;
         p.Localite = document.getElementById('edit-localite').value;
-        p.Adresse = ""; // Reset old unformatted address
+        p.Adresse = ""; // On efface l'ancienne adresse brute non formatée
         saveData();
         renderList(document.getElementById('searchInput').value);
       }
@@ -560,7 +623,7 @@
     }
 
     function updatePinDisplay() {
-      const chars = currentPin.padEnd(4, '_').split('');
+      const chars = currentPin.padEnd(4, '•').split('');
       document.getElementById('pin-display').innerText = chars.join(' ');
     }
 
@@ -579,6 +642,7 @@
       }
     }
 
+    // Gestion du menu Admin
     document.getElementById('admin-date-select').onchange = (e) => {
       activeDate = e.target.value;
       localStorage.setItem('shooting_date', activeDate);
@@ -586,6 +650,7 @@
       showToast("Date changée pour le " + activeDate);
     };
 
+    // Import Excel (Initial)
     document.getElementById('fileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -604,25 +669,52 @@
           Heure: row.Heure || row.Horaire || "",
           Telephone: row.Telephone || row.Téléphone || row.Tel || "",
           Mail: row.Mail || row.Email || "",
-          Rue: row.Rue || "", Numero: row.Numero || row["N°"] || "", Npa: row.Npa || row.NPA || row["Code Postal"] || "", Localite: row.Localite || row.Localité || "",
-          Adresse: row.Adresse || row.Adresse_postale || "", // Fallback
+          Rue: row.Rue || row.Adresse || "", 
+          Numero: row.Numero || row["N°"] || "", 
+          CP: row.CP || row.NPA || row["Code Postal"] || "", 
+          Localite: row.Localite || row.Localité || row.Ville || "",
+          Adresse: row.Adresse_postale || "", // Fallback
           valide: false
         }));
         
         saveData();
         renderList();
         showToast("Import réussi : " + participants.length + " personnes");
-        document.getElementById('fileInput').value = ""; // Reset
+        document.getElementById('fileInput').value = "";
       };
       reader.readAsArrayBuffer(file);
     });
 
+    // Import JSON (Restauration)
+    document.getElementById('restoreInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const data = JSON.parse(event.target.result);
+          if (Array.isArray(data)) {
+            participants = data;
+            saveData();
+            renderList();
+            showToast("Restauration de la sauvegarde réussie !");
+          } else {
+            alert("Le fichier JSON n'est pas au bon format.");
+          }
+        } catch(err) {
+          alert("Erreur lors de la lecture du fichier de sauvegarde.");
+        }
+        document.getElementById('restoreInput').value = "";
+      };
+      reader.readAsText(file);
+    });
+
+    // Export JSON
     document.getElementById('btn-export').onclick = () => {
       const dataStr = JSON.stringify(participants, null, 2);
       const blob = new Blob([dataStr], { type: 'application/json' });
       const filename = "sauvegarde_shooting_" + activeDate + ".json";
       
-      // Fallback iOS Safari Download
       if (window.navigator && window.navigator.msSaveOrOpenBlob) {
           window.navigator.msSaveOrOpenBlob(blob, filename);
       } else {
@@ -637,6 +729,18 @@
           document.body.removeChild(a);
       }
       showToast("Téléchargement lancé !");
+    };
+
+    // Reset Data
+    document.getElementById('btn-reset').onclick = () => {
+      if(confirm("ATTENTION : Voulez-vous vraiment effacer toutes les données de cet appareil ? N'oubliez pas d'exporter une sauvegarde avant !")) {
+        if(confirm("Êtes-vous absolument sûr ? Cette action est irréversible.")) {
+          participants = [];
+          saveData();
+          renderList();
+          showToast("Données réinitialisées avec succès.");
+        }
+      }
     };
   </script>
 </body>
