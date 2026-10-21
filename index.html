@@ -3,29 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0b57d0">
-  <title>Vérification des infos</title>
+  <title>Contrôle des présences</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <style>
-    /* Reset & Base Styles */
-    html, body {
+    body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #0b57d0 !important;
+      background-color: #0b57d0;
       color: #ffffff;
       margin: 0;
       padding: 0;
-      min-height: 100vh;
+      padding-bottom: 120px;
       box-sizing: border-box;
     }
-    
     #admin-trigger {
       position: absolute;
       top: 0;
       right: 0;
-      width: 100px;
-      height: 100px;
+      width: 90px;
+      height: 90px;
       z-index: 1000;
-      background: transparent;
     }
     header {
       text-align: center;
@@ -35,18 +31,9 @@
       max-width: 150px;
       margin-bottom: 10px;
     }
-    #date-display {
-      font-size: 1.1em;
-      font-weight: bold;
-      opacity: 0.9;
-    }
-    
     main {
       padding: 0 15px;
-      padding-bottom: 180px; 
     }
-    
-    /* Participant Cards */
     .participant-card {
       background-color: rgba(255, 255, 255, 0.15);
       padding: 15px;
@@ -70,57 +57,46 @@
       font-size: 0.9em;
       opacity: 0.8;
     }
-    
-    /* Search Bar & Add Button Area (No blue background container) */
     #search-container {
       position: fixed;
-      bottom: env(safe-area-inset-bottom, 20px);
+      bottom: 20px;
       left: 15px;
       width: calc(100% - 30px);
-      background: transparent; /* Removed blue background */
-      box-sizing: border-box;
+      background-color: transparent;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      z-index: 500;
+      box-sizing: border-box;
+      z-index: 100;
     }
-    
+    #no-results {
+      text-align: center;
+      margin-bottom: 10px;
+    }
     #btn-add-search {
-      background-color: #ffffff;
-      color: #0b57d0;
-      border: none;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-      font-weight: bold;
-      border-radius: 15px;
-      padding: 15px;
       width: 100%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
-    
     #searchInput {
       width: 100%;
       padding: 15px;
-      border-radius: 15px;
+      border-radius: 20px;
       border: none;
       font-size: 16px;
       background-color: #ffffff;
       color: #333;
       box-sizing: border-box;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* Added shadow to input directly */
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
-    
-    /* Modals */
     .modal {
       display: none;
       position: fixed;
-      top: 0; left: 0; width: 100%; height: 100vh;
-      background-color: rgba(0, 0, 0, 0.85);
+      top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
       z-index: 2000;
       justify-content: center;
-      align-items: flex-start;
+      align-items: center;
       padding: 20px;
-      padding-top: env(safe-area-inset-top, 40px);
       box-sizing: border-box;
-      overflow-y: auto; 
     }
     .modal.active {
       display: flex;
@@ -132,10 +108,9 @@
       max-width: 500px;
       border-radius: 16px;
       padding: 20px;
-      margin: auto; 
-      max-height: 85vh; 
-      overflow-y: auto; 
-      box-sizing: border-box; /* CRITICAL for preventing overflow */
+      max-height: 90vh;
+      overflow-y: auto;
+      box-sizing: border-box;
     }
     .modal-content h2, .modal-content h3 {
       margin-top: 0;
@@ -147,8 +122,6 @@
       gap: 10px;
       margin-top: 20px;
     }
-    
-    /* Buttons */
     button {
       padding: 15px;
       border-radius: 10px;
@@ -156,16 +129,19 @@
       font-size: 16px;
       font-weight: bold;
       cursor: pointer;
-      width: 100%;
-      box-sizing: border-box;
     }
-    .btn-primary { background-color: #0b57d0; color: #ffffff; }
-    .btn-secondary { background-color: #e0e0e0; color: #333; }
-    .btn-danger { background-color: #d32f2f; color: #ffffff; }
-    .btn-warning { background-color: #ff9800; color: #ffffff; }
-    .btn-text { background-color: transparent; color: #666; }
-    
-    /* Form Fields */
+    .btn-primary {
+      background-color: #0b57d0;
+      color: #ffffff;
+    }
+    .btn-secondary {
+      background-color: #e0e0e0;
+      color: #333;
+    }
+    .btn-text {
+      background-color: transparent;
+      color: #666;
+    }
     label {
       display: flex;
       flex-direction: column;
@@ -182,103 +158,76 @@
       font-family: inherit;
       font-size: 16px;
       width: 100%;
-      box-sizing: border-box; /* Ensures padding and border don't cause overflow */
-    }
-    
-    /* Grid for Addresses (Fixing Overflow and Ratios) */
-    .address-grid-top {
-      display: grid;
-      grid-template-columns: 3fr 1fr;
-      gap: 10px;
-      width: 100%;
       box-sizing: border-box;
     }
-    .address-grid-bottom {
+    .address-grid {
       display: grid;
-      grid-template-columns: 1fr 3fr;
+      grid-template-columns: 2fr 1fr;
       gap: 10px;
       width: 100%;
-      box-sizing: border-box;
     }
-    
     hr {
       border: 0;
       border-top: 1px solid #eee;
       margin: 20px 0;
     }
-    
-    /* PIN Pad Styles */
-    .pin-display {
-      font-size: 2em;
+    .help-text {
+      font-size: 0.8em;
+      color: #d32f2f;
+    }
+    .keypad-container {
       text-align: center;
-      letter-spacing: 15px;
-      margin-bottom: 20px;
-      height: 40px;
+    }
+    .keypad-display {
+      font-size: 2em;
+      letter-spacing: 10px;
+      margin: 20px 0;
+      min-height: 40px;
       color: #0b57d0;
     }
-    .pin-pad {
+    .keypad {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 15px;
-      max-width: 280px;
+      max-width: 300px;
       margin: 0 auto;
-      justify-items: center;
     }
-    .pin-pad button {
-      width: 75px;
-      height: 75px;
-      border-radius: 50%;
-      font-size: 1.5em;
+    .key-btn {
       background-color: #f0f0f0;
       color: #333;
-      padding: 0;
+      border-radius: 50%;
+      width: 75px;
+      height: 75px;
+      font-size: 1.5em;
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
+      margin: 0 auto;
     }
-    .pin-pad button.action-btn {
-      font-size: 1em;
+    .keypad .btn-text {
       background-color: transparent;
-      border-radius: 10px;
-      height: auto;
-    }
-    
-    /* Toast Notification */
-    #toast {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background-color: #4CAF50;
-      color: white;
-      padding: 15px 30px;
-      border-radius: 25px;
-      z-index: 3000;
-      display: none;
-      font-weight: bold;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      font-size: 1.2em;
     }
   </style>
 </head>
 <body>
   <div id="admin-trigger"></div>
-  <div id="toast">Message</div>
-
   <header>
     <img src="logo-content-camp.png" alt="Logo" id="logo" onerror="this.style.display='none'">
-    <div id="date-display">Shooting photo du XX.XX</div>
+    <h1 id="date-display">Shooting photo du ...</h1>
   </header>
   
   <main id="main-content">
     <div id="participants-list"></div>
   </main>
-  
+
   <div id="search-container">
-    <button id="btn-add-search" style="display: none;">Ajouter ce participant</button>
+    <div id="no-results" style="display: none;">
+      <button id="btn-add-search" class="btn-primary">Ajouter ce participant</button>
+    </div>
     <input type="text" id="searchInput" placeholder="Rechercher un nom...">
   </div>
 
-  <!-- Modal : Profil -->
   <div id="profile-modal" class="modal">
     <div class="modal-content">
       <h2 id="profile-name">nom prénom</h2>
@@ -289,65 +238,63 @@
       <div class="modal-actions">
         <button id="btn-validate" class="btn-primary">Confirmer les informations</button>
         <button id="btn-edit" class="btn-secondary">Modifier les infos</button>
-        <button class="btn-text close-modal" data-target="profile-modal">Fermer</button>
+        <button id="btn-close-profile" class="btn-text">Fermer</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal : Édition -->
   <div id="edit-modal" class="modal">
     <div class="modal-content">
       <h2>Modifier les informations</h2>
       <label>Prénom <input type="text" id="edit-prenom"></label>
       <label>Nom <input type="text" id="edit-nom"></label>
       <label>Heure <input type="time" id="edit-heure"></label>
-      <label>Téléphone <input type="tel" id="edit-phone" placeholder="ex: 0791234567 ou +41791234567"></label>
+      <label>Téléphone <input type="tel" id="edit-phone" placeholder="+41... ou 10 chiffres"></label>
       <label>Email <input type="email" id="edit-email"></label>
       
-      <div class="address-grid-top">
+      <div class="address-grid">
         <label>Rue <input type="text" id="edit-rue"></label>
-        <label>N° <input type="text" id="edit-numero" placeholder="ex: 12A"></label>
+        <label>N° <input type="text" id="edit-numero"></label>
       </div>
-      <div class="address-grid-bottom">
-        <label>Code Postal <input type="text" inputmode="numeric" id="edit-cp" placeholder="ex: 1000"></label>
+      
+      <div class="address-grid">
         <label>Localité <input type="text" id="edit-localite"></label>
+        <label>Code postal <input type="number" id="edit-cp" inputmode="numeric"></label>
       </div>
-
+      
       <div class="modal-actions">
         <button id="btn-save-edit" class="btn-primary">Enregistrer</button>
-        <button class="btn-text close-modal" data-target="edit-modal">Annuler</button>
+        <button id="btn-cancel-edit" class="btn-text">Annuler</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal : PIN Pad -->
-  <div id="pin-modal" class="modal">
-    <div class="modal-content" style="max-width: 320px;">
-      <h2 style="text-align: center;">Code administrateur</h2>
-      <div class="pin-display" id="pin-display"></div>
-      <div class="pin-pad" id="pin-pad">
-        <button data-val="1">1</button>
-        <button data-val="2">2</button>
-        <button data-val="3">3</button>
-        <button data-val="4">4</button>
-        <button data-val="5">5</button>
-        <button data-val="6">6</button>
-        <button data-val="7">7</button>
-        <button data-val="8">8</button>
-        <button data-val="9">9</button>
-        <button class="action-btn close-modal" data-target="pin-modal">Annuler</button>
-        <button data-val="0">0</button>
-        <button class="action-btn" id="btn-pin-back">⌫</button>
+  <div id="keypad-modal" class="modal">
+    <div class="modal-content keypad-container">
+      <h2>Code requis</h2>
+      <div class="keypad-display" id="keypad-display"></div>
+      <div class="keypad">
+        <button class="key-btn" data-val="1">1</button>
+        <button class="key-btn" data-val="2">2</button>
+        <button class="key-btn" data-val="3">3</button>
+        <button class="key-btn" data-val="4">4</button>
+        <button class="key-btn" data-val="5">5</button>
+        <button class="key-btn" data-val="6">6</button>
+        <button class="key-btn" data-val="7">7</button>
+        <button class="key-btn" data-val="8">8</button>
+        <button class="key-btn" data-val="9">9</button>
+        <button class="key-btn btn-text" id="keypad-cancel">Annuler</button>
+        <button class="key-btn" data-val="0">0</button>
+        <button class="key-btn btn-text" id="keypad-back">⌫</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal : Admin -->
   <div id="admin-modal" class="modal">
     <div class="modal-content">
       <h2>Menu administrateur</h2>
-      
-      <label>Date du shooting : 
+      <div id="admin-message" style="display:none; color:green; font-weight:bold; margin-bottom:10px;"></div>
+      <label>Forcer la date du shooting : 
         <select id="admin-date-select">
           <option value="27.10">27.10</option>
           <option value="29.10">29.10</option>
@@ -357,66 +304,49 @@
         </select>
       </label>
       <hr>
-      
-      <h3>Importer Liste Initiale (Excel)</h3>
-      <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" style="width: 100%;">
+      <h3>Importer des données</h3>
+      <input type="file" id="fileInput" accept=".json">
+      <p class="help-text">Attention : l'import écrasera la liste actuelle</p>
       <hr>
-      
-      <h3>Export & Sauvegarde</h3>
-      <button id="btn-export-excel" class="btn-primary" style="margin-bottom: 10px;">Exporter le tableau final (Excel)</button>
-      <button id="btn-export-json" class="btn-secondary" style="margin-bottom: 10px;">Sauvegarde de secours (.json)</button>
-      
-      <label>Restaurer depuis un fichier .json :
-        <input type="file" id="restoreInput" accept=".json" style="width: 100%;">
-      </label>
+      <h3>Exporter les données</h3>
+      <button id="btn-export-json" class="btn-secondary">Télécharger la sauvegarde JSON</button>
+      <button id="btn-export-xls" class="btn-secondary" style="margin-top: 10px;">Exporter en Excel</button>
       <hr>
-
-      <h3>Zone de danger</h3>
-      <button id="btn-reset-day" class="btn-warning" style="margin-bottom: 10px;">Réinitialiser la journée sélectionnée</button>
-      <button id="btn-reset-all" class="btn-danger">Réinitialiser TOUTES les données</button>
+      <h3>Réinitialisation</h3>
+      <button id="btn-reset-day" class="btn-text" style="color:red; width:100%; margin-bottom:10px;">Effacer la journée</button>
+      <button id="btn-reset-all" class="btn-text" style="color:red; width:100%;">Tout effacer</button>
       <hr>
-
-      <button class="btn-text close-modal" data-target="admin-modal">Fermer le menu</button>
+      <button id="btn-close-admin" class="btn-text">Fermer le menu</button>
     </div>
   </div>
 
   <script>
-    const VALID_DATES = ["27.10", "29.10", "31.10", "04.11", "07.11"];
     let participants = [];
-    let activeDate = VALID_DATES[0];
+    const validDates = ["27.10", "29.10", "31.10", "04.11", "07.11"];
+    let activeDate = validDates[0];
     let currentParticipantId = null;
-    let currentPin = "";
 
     window.onload = function() {
-      initDate();
       loadData();
       renderList();
-      setupModals();
-      setupPinPad();
     };
-
-    function showToast(message) {
-      const toast = document.getElementById('toast');
-      toast.innerText = message;
-      toast.style.display = 'block';
-      setTimeout(() => { toast.style.display = 'none'; }, 3000);
-    }
-
-    function initDate() {
-      const d = new Date();
-      const todayStr = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0');
-      if (VALID_DATES.includes(todayStr)) {
-        activeDate = todayStr;
-      }
-    }
 
     function loadData() {
       const saved = localStorage.getItem('shooting_participants');
-      if (saved) participants = JSON.parse(saved);
-      
+      if (saved) {
+        participants = JSON.parse(saved);
+      }
       const savedDate = localStorage.getItem('shooting_date');
-      if (savedDate && VALID_DATES.includes(savedDate)) {
+      if (savedDate && validDates.includes(savedDate)) {
         activeDate = savedDate;
+      } else {
+        const d = new Date();
+        const todayStr = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0');
+        if (validDates.includes(todayStr)) {
+          activeDate = todayStr;
+        } else {
+          activeDate = validDates[0];
+        }
       }
       document.getElementById('admin-date-select').value = activeDate;
     }
@@ -425,71 +355,69 @@
       localStorage.setItem('shooting_participants', JSON.stringify(participants));
     }
 
-    function parseTimeForSort(t) {
-      if (!t) return "23:59";
-      let s = t.toString().replace(/h/i, ':').trim();
-      let parts = s.split(':');
-      if (parts.length >= 2) {
-        let hr = parts[0].padStart(2, '0');
-        let min = parts[1].padStart(2, '0');
-        return `${hr}:${min}`;
-      }
-      return "23:59";
+    function showAdminMessage(msg) {
+      const el = document.getElementById('admin-message');
+      el.innerText = msg;
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 3000);
+    }
+
+    function parseTime(timeStr) {
+      if (!timeStr) return "23:59";
+      let t = timeStr.toLowerCase().replace('h', ':');
+      if (t.length === 4 && t.indexOf(':') === 1) t = '0' + t;
+      return t;
     }
 
     function renderList(searchQuery = "") {
       const listContainer = document.getElementById('participants-list');
-      const btnAdd = document.getElementById('btn-add-search');
+      const noResults = document.getElementById('no-results');
       listContainer.innerHTML = '';
       
       document.getElementById('date-display').innerText = "Shooting photo du " + activeDate;
 
       let filtered = participants.filter(p => p.Date === activeDate || !p.Date);
-      let exactMatchFound = false;
 
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        filtered = filtered.filter(p => {
-          const match = (p.Nom && p.Nom.toLowerCase().includes(q)) || (p.Prenom && p.Prenom.toLowerCase().includes(q));
-          if (match) exactMatchFound = true;
-          return match;
-        });
+        filtered = filtered.filter(p => 
+          (p.Nom && p.Nom.toLowerCase().includes(q)) || 
+          (p.Prenom && p.Prenom.toLowerCase().includes(q))
+        );
       }
 
       filtered.sort((a, b) => {
-        if (a.valide !== b.valide) return a.valide ? 1 : -1;
-        let timeA = parseTimeForSort(a.Heure);
-        let timeB = parseTimeForSort(b.Heure);
+        if (a.valide !== b.valide) {
+          return a.valide ? 1 : -1;
+        }
+        const timeA = parseTime(a.Heure);
+        const timeB = parseTime(b.Heure);
         return timeA.localeCompare(timeB);
       });
 
-      btnAdd.style.display = (searchQuery !== "" && !exactMatchFound) ? 'block' : 'none';
-
-      filtered.forEach(p => {
-        const div = document.createElement('div');
-        div.className = 'participant-card' + (p.valide ? ' valide' : '');
-        div.onclick = () => openProfile(p.id);
-        div.innerHTML = `
-          <div class="participant-info">
-            <strong>${p.Prenom || ''} ${p.Nom || ''}</strong>
-            <span class="participant-time">${p.Heure || 'Heure non définie'}</span>
-          </div>
-        `;
-        listContainer.appendChild(div);
-      });
+      if (filtered.length === 0 && searchQuery !== "") {
+        noResults.style.display = 'block';
+      } else {
+        noResults.style.display = 'none';
+        filtered.forEach(p => {
+          const div = document.createElement('div');
+          div.className = 'participant-card' + (p.valide ? ' valide' : '');
+          div.onclick = () => openProfile(p.id);
+          
+          div.innerHTML = `
+            <div class="participant-info">
+              <strong>${p.Prenom || ''} ${p.Nom || ''}</strong>
+              <span class="participant-time">${p.Heure || 'heure non définie'}</span>
+            </div>
+          `;
+          listContainer.appendChild(div);
+        });
+      }
     }
 
-    function setupModals() {
-      document.querySelectorAll('.close-modal').forEach(btn => {
-        btn.onclick = (e) => {
-          const targetId = e.target.getAttribute('data-target');
-          document.getElementById(targetId).classList.remove('active');
-          if(targetId === 'edit-modal') openProfile(currentParticipantId);
-        };
-      });
-    }
-
-    document.getElementById('searchInput').addEventListener('input', (e) => renderList(e.target.value));
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+      renderList(e.target.value);
+    });
 
     document.getElementById('btn-add-search').addEventListener('click', function() {
       const query = document.getElementById('searchInput').value.trim();
@@ -502,8 +430,16 @@
       
       const newP = {
         id: Date.now().toString(),
-        Prenom: prenom, Nom: nom, Date: activeDate, Heure: "",
-        Telephone: "", Mail: "", Rue: "", Numero: "", CP: "", Localite: "",
+        Prenom: prenom,
+        Nom: nom,
+        Date: activeDate,
+        Heure: "",
+        Telephone: "",
+        Mail: "",
+        Rue: "",
+        Numero: "",
+        CP: "",
+        Localite: "",
         valide: false
       };
       
@@ -519,20 +455,22 @@
       const p = participants.find(x => x.id === id);
       if (!p) return;
       
+      const fullAddress = [p.Rue, p.Numero, p.CP, p.Localite].filter(Boolean).join(" ");
+      
       document.getElementById('profile-name').innerText = `${p.Prenom || ''} ${p.Nom || ''}`;
       document.getElementById('profile-time').innerText = p.Heure || '-';
       document.getElementById('profile-phone').innerText = p.Telephone || '-';
       document.getElementById('profile-email').innerText = p.Mail || '-';
+      document.getElementById('profile-address').innerText = fullAddress || '-';
       
-      const fullAddress = [p.Rue, p.Numero, p.CP, p.Localite].filter(Boolean).join(' ');
-      document.getElementById('profile-address').innerText = fullAddress || (p.Adresse || '-');
-      
-      const btnVal = document.getElementById('btn-validate');
-      btnVal.innerText = p.valide ? "Annuler la confirmation" : "Confirmer les informations";
-      btnVal.style.backgroundColor = p.valide ? "#d32f2f" : "#0b57d0";
+      document.getElementById('btn-validate').innerText = p.valide ? "Annuler la confirmation" : "Confirmer les informations";
       
       document.getElementById('profile-modal').classList.add('active');
     }
+
+    document.getElementById('btn-close-profile').onclick = () => {
+      document.getElementById('profile-modal').classList.remove('active');
+    };
 
     document.getElementById('btn-validate').onclick = () => {
       const p = participants.find(x => x.id === currentParticipantId);
@@ -550,14 +488,7 @@
       
       document.getElementById('edit-prenom').value = p.Prenom || '';
       document.getElementById('edit-nom').value = p.Nom || '';
-      
-      let formattedTime = p.Heure || '';
-      if (formattedTime) {
-          let timeSortStr = parseTimeForSort(formattedTime);
-          if(timeSortStr !== "23:59") formattedTime = timeSortStr;
-      }
-      document.getElementById('edit-heure').value = formattedTime;
-      
+      document.getElementById('edit-heure').value = p.Heure || '';
       document.getElementById('edit-phone').value = p.Telephone || '';
       document.getElementById('edit-email').value = p.Mail || '';
       document.getElementById('edit-rue').value = p.Rue || '';
@@ -569,36 +500,36 @@
       document.getElementById('edit-modal').classList.add('active');
     };
 
+    document.getElementById('btn-cancel-edit').onclick = () => {
+      document.getElementById('edit-modal').classList.remove('active');
+      openProfile(currentParticipantId);
+    };
+
     document.getElementById('btn-save-edit').onclick = () => {
-      let errs = [];
-      
-      const phone = document.getElementById('edit-phone').value.replace(/\s/g, '');
-      if (phone && !/^(\+\d{2}\d{9}|\d{10})$/.test(phone)) {
-        errs.push("Le téléphone doit contenir 10 chiffres (ex: 0791234567) ou +XX suivi de 9 chiffres.");
-      }
-      
-      const email = document.getElementById('edit-email').value;
-      if (email && !email.includes('@')) {
-        errs.push("L'adresse email doit contenir un symbole @.");
-      }
-
-      const numero = document.getElementById('edit-numero').value.trim();
-      if (numero && !/^\d{1,3}[a-zA-Z]?$/.test(numero)) {
-        errs.push("Le numéro de rue doit contenir entre 1 et 3 chiffres, avec éventuellement une lettre (ex: 12, 12A).");
-      }
-
-      const cp = document.getElementById('edit-cp').value.trim();
-      if (cp && !/^\d{4}$/.test(cp)) {
-        errs.push("Le Code Postal doit contenir exactement 4 chiffres.");
-      }
-      
-      if (errs.length > 0) {
-        alert(errs.join('\n\n'));
-        return;
-      }
-
       const p = participants.find(x => x.id === currentParticipantId);
       if (p) {
+        const phone = document.getElementById('edit-phone').value.replace(/\s/g, '');
+        const email = document.getElementById('edit-email').value;
+        const num = document.getElementById('edit-numero').value;
+        const cp = document.getElementById('edit-cp').value;
+        
+        if (phone !== "" && !/^(?:\d{10}|\+\d{9,})$/.test(phone)) {
+          alert("le numéro de téléphone doit contenir exactement 10 chiffres ou commencer par + suivi de 9 chiffres minimum");
+          return;
+        }
+        if (email !== "" && !email.includes('@')) {
+          alert("l'adresse mail doit contenir un symbole @");
+          return;
+        }
+        if (num !== "" && !/^\d{1,3}[A-Za-z]?$/.test(num)) {
+          alert("le numéro de rue doit contenir entre 1 et 3 chiffres, potentiellement suivis d'une lettre");
+          return;
+        }
+        if (cp !== "" && !/^\d{4}$/.test(cp)) {
+          alert("le code postal doit obligatoirement contenir exactement 4 chiffres");
+          return;
+        }
+      
         p.Prenom = document.getElementById('edit-prenom').value;
         p.Nom = document.getElementById('edit-nom').value;
         p.Heure = document.getElementById('edit-heure').value;
@@ -608,7 +539,6 @@
         p.Numero = document.getElementById('edit-numero').value;
         p.CP = document.getElementById('edit-cp').value;
         p.Localite = document.getElementById('edit-localite').value;
-        p.Adresse = "";
         saveData();
         renderList(document.getElementById('searchInput').value);
       }
@@ -616,99 +546,64 @@
       openProfile(currentParticipantId);
     };
 
-    // Admin & PIN Pad
     let tapCount = 0;
     let tapTimer;
+    let currentCode = "";
+
     document.getElementById('admin-trigger').addEventListener('click', () => {
       tapCount++;
       clearTimeout(tapTimer);
       if (tapCount >= 5) {
         tapCount = 0;
-        currentPin = "";
-        updatePinDisplay();
-        document.getElementById('pin-modal').classList.add('active');
+        currentCode = "";
+        document.getElementById('keypad-display').innerText = "";
+        document.getElementById('keypad-modal').classList.add('active');
       }
       tapTimer = setTimeout(() => { tapCount = 0; }, 1500);
     });
 
-    function setupPinPad() {
-      document.querySelectorAll('#pin-pad button[data-val]').forEach(btn => {
-        btn.onclick = () => {
-          if (currentPin.length < 4) {
-            currentPin += btn.getAttribute('data-val');
-            updatePinDisplay();
-            if (currentPin.length === 4) checkPin();
+    document.querySelectorAll('.key-btn[data-val]').forEach(btn => {
+      btn.onclick = (e) => {
+        if (currentCode.length < 4) {
+          currentCode += e.target.getAttribute('data-val');
+          document.getElementById('keypad-display').innerText = '*'.repeat(currentCode.length);
+          if (currentCode.length === 4) {
+            setTimeout(() => {
+              if (currentCode === "1848") {
+                document.getElementById('keypad-modal').classList.remove('active');
+                document.getElementById('admin-modal').classList.add('active');
+              } else {
+                alert("code incorrect");
+                currentCode = "";
+                document.getElementById('keypad-display').innerText = "";
+              }
+            }, 100);
           }
-        };
-      });
-      document.getElementById('btn-pin-back').onclick = () => {
-        currentPin = currentPin.slice(0, -1);
-        updatePinDisplay();
+        }
       };
-    }
+    });
 
-    function updatePinDisplay() {
-      const chars = currentPin.padEnd(4, '•').split('');
-      document.getElementById('pin-display').innerText = chars.join(' ');
-    }
+    document.getElementById('keypad-back').onclick = () => {
+      currentCode = currentCode.slice(0, -1);
+      document.getElementById('keypad-display').innerText = '*'.repeat(currentCode.length);
+    };
 
-    function checkPin() {
-      if (currentPin === "1848") {
-        setTimeout(() => {
-          document.getElementById('pin-modal').classList.remove('active');
-          document.getElementById('admin-modal').classList.add('active');
-        }, 200);
-      } else {
-        setTimeout(() => {
-          alert("Code incorrect");
-          currentPin = "";
-          updatePinDisplay();
-        }, 100);
-      }
-    }
+    document.getElementById('keypad-cancel').onclick = () => {
+      document.getElementById('keypad-modal').classList.remove('active');
+    };
+
+    document.getElementById('btn-close-admin').onclick = () => {
+      document.getElementById('admin-modal').classList.remove('active');
+    };
 
     document.getElementById('admin-date-select').onchange = (e) => {
       activeDate = e.target.value;
       localStorage.setItem('shooting_date', activeDate);
       renderList();
-      showToast("Date changée pour le " + activeDate);
+      showAdminMessage("la date a bien été enregistrée");
     };
 
     document.getElementById('fileInput').addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(event) {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, {type: 'array'});
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(worksheet);
-        
-        participants = json.map((row, index) => ({
-          id: Date.now().toString() + "-" + index,
-          Prenom: row.Prenom || row.Prénom || "",
-          Nom: row.Nom || "",
-          Date: row.Date || row.Jour || activeDate,
-          Heure: row.Heure || row.Horaire || "",
-          Telephone: row.Telephone || row.Téléphone || row.Tel || "",
-          Mail: row.Mail || row.Email || "",
-          Rue: row.Rue || row.Adresse || "", 
-          Numero: row.Numero || row["N°"] || "", 
-          CP: row.CP || row.NPA || row["Code Postal"] || "", 
-          Localite: row.Localite || row.Localité || row.Ville || "",
-          Adresse: row.Adresse_postale || "",
-          valide: false
-        }));
-        
-        saveData();
-        renderList();
-        showToast("Import réussi : " + participants.length + " personnes");
-        document.getElementById('fileInput').value = "";
-      };
-      reader.readAsArrayBuffer(file);
-    });
-
-    document.getElementById('restoreInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
@@ -719,80 +614,56 @@
             participants = data;
             saveData();
             renderList();
-            showToast("Restauration de la sauvegarde réussie !");
+            showAdminMessage("importation réussie");
           } else {
-            alert("Le fichier JSON n'est pas au bon format.");
+            alert("le format du fichier json n'est pas correct");
           }
-        } catch(err) {
-          alert("Erreur lors de la lecture du fichier de sauvegarde.");
+        } catch (err) {
+          alert("erreur lors de la lecture du fichier json");
         }
-        document.getElementById('restoreInput').value = "";
       };
       reader.readAsText(file);
     });
 
     document.getElementById('btn-export-json').onclick = () => {
       const dataStr = JSON.stringify(participants, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
-      triggerDownload(blob, "sauvegarde_secours_" + activeDate + ".json");
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", url);
+      downloadAnchorNode.setAttribute("download", "sauvegarde_shooting_" + activeDate + ".json");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      URL.revokeObjectURL(url);
+      showAdminMessage("le fichier json a été généré");
     };
 
-    document.getElementById('btn-export-excel').onclick = () => {
-      const exportData = participants.map(p => ({
-        "Prénom": p.Prenom,
-        "Nom": p.Nom,
-        "Date": p.Date,
-        "Heure": p.Heure,
-        "Téléphone": p.Telephone,
-        "Email": p.Mail,
-        "Rue": p.Rue,
-        "N°": p.Numero,
-        "NPA": p.CP,
-        "Localité": p.Localite,
-        "Présence Confirmée": p.valide ? "OUI" : "NON"
-      }));
-      
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Participants");
-      XLSX.writeFile(wb, "export_shooting_" + activeDate + ".xlsx");
-      showToast("Téléchargement Excel lancé !");
+    document.getElementById('btn-export-xls').onclick = () => {
+      const worksheet = XLSX.utils.json_to_sheet(participants);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Participants");
+      XLSX.writeFile(workbook, "export_shooting_" + activeDate + ".xlsx");
+      showAdminMessage("le fichier excel a été généré");
     };
-
-    function triggerDownload(blob, filename) {
-      if (window.navigator && window.navigator.msSaveOrOpenBlob) {
-          window.navigator.msSaveOrOpenBlob(blob, filename);
-      } else {
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-      }
-      showToast("Téléchargement lancé !");
-    }
 
     document.getElementById('btn-reset-day').onclick = () => {
-      if(confirm(`Voulez-vous effacer uniquement les données du ${activeDate} ? N'oubliez pas d'exporter une sauvegarde avant !`)) {
+      const conf = confirm("es-tu sûr de vouloir effacer toutes les données de la journée du " + activeDate + " ?");
+      if (conf) {
         participants = participants.filter(p => p.Date !== activeDate);
         saveData();
         renderList();
-        showToast(`Données du ${activeDate} réinitialisées.`);
+        showAdminMessage("les données de la journée ont été effacées");
       }
     };
 
     document.getElementById('btn-reset-all').onclick = () => {
-      if(confirm("ATTENTION : Voulez-vous vraiment effacer TOUTES les données de cet appareil ?")) {
-        if(confirm("Êtes-vous absolument sûr ? Cette action est irréversible.")) {
-          participants = [];
-          saveData();
-          renderList();
-          showToast("Toutes les données ont été réinitialisées.");
-        }
+      const conf = confirm("es-tu sûr de vouloir effacer l'intégralité des données de l'application ?");
+      if (conf) {
+        participants = [];
+        saveData();
+        renderList();
+        showAdminMessage("toutes les données ont été effacées");
       }
     };
   </script>
