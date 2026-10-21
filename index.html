@@ -43,7 +43,7 @@
     
     main {
       padding: 0 15px;
-      padding-bottom: 180px; /* Space for detached search bar */
+      padding-bottom: 180px; 
     }
     
     /* Participant Cards */
@@ -71,18 +71,14 @@
       opacity: 0.8;
     }
     
-    /* Search Bar & Add Button Area - Now detached from bottom */
+    /* Search Bar & Add Button Area (No blue background container) */
     #search-container {
       position: fixed;
       bottom: env(safe-area-inset-bottom, 20px);
       left: 15px;
       width: calc(100% - 30px);
-      background-color: rgba(11, 87, 208, 0.98);
-      padding: 15px;
+      background: transparent; /* Removed blue background */
       box-sizing: border-box;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 20px;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -93,9 +89,11 @@
       background-color: #ffffff;
       color: #0b57d0;
       border: none;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
       font-weight: bold;
       border-radius: 15px;
+      padding: 15px;
+      width: 100%;
     }
     
     #searchInput {
@@ -107,6 +105,7 @@
       background-color: #ffffff;
       color: #333;
       box-sizing: border-box;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* Added shadow to input directly */
     }
     
     /* Modals */
@@ -117,12 +116,11 @@
       background-color: rgba(0, 0, 0, 0.85);
       z-index: 2000;
       justify-content: center;
-      align-items: center; /* Changed from center to flex-start for horizontal iPad compatibility */
       align-items: flex-start;
       padding: 20px;
       padding-top: env(safe-area-inset-top, 40px);
       box-sizing: border-box;
-      overflow-y: auto; /* Allow modal container to scroll */
+      overflow-y: auto; 
     }
     .modal.active {
       display: flex;
@@ -134,9 +132,10 @@
       max-width: 500px;
       border-radius: 16px;
       padding: 20px;
-      margin: auto; /* Centers when flex-start is used, but respects top margin if too tall */
-      max-height: 85vh; /* Keep it contained */
-      overflow-y: auto; /* Scroll inside the content block */
+      margin: auto; 
+      max-height: 85vh; 
+      overflow-y: auto; 
+      box-sizing: border-box; /* CRITICAL for preventing overflow */
     }
     .modal-content h2, .modal-content h3 {
       margin-top: 0;
@@ -158,6 +157,7 @@
       font-weight: bold;
       cursor: pointer;
       width: 100%;
+      box-sizing: border-box;
     }
     .btn-primary { background-color: #0b57d0; color: #ffffff; }
     .btn-secondary { background-color: #e0e0e0; color: #333; }
@@ -172,6 +172,7 @@
       margin-bottom: 10px;
       font-weight: bold;
       font-size: 0.9em;
+      width: 100%;
     }
     label input, label select {
       margin-top: 5px;
@@ -180,18 +181,24 @@
       border: 1px solid #ccc;
       font-family: inherit;
       font-size: 16px;
+      width: 100%;
+      box-sizing: border-box; /* Ensures padding and border don't cause overflow */
     }
     
-    /* Grid for Addresses */
+    /* Grid for Addresses (Fixing Overflow and Ratios) */
     .address-grid-top {
       display: grid;
       grid-template-columns: 3fr 1fr;
       gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
     }
     .address-grid-bottom {
       display: grid;
-      grid-template-columns: 1fr 2fr;
+      grid-template-columns: 1fr 3fr;
       gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
     }
     
     hr {
@@ -420,7 +427,6 @@
 
     function parseTimeForSort(t) {
       if (!t) return "23:59";
-      // Remplacer 'h' ou 'H' par ':' (ex: "9h15" -> "9:15")
       let s = t.toString().replace(/h/i, ':').trim();
       let parts = s.split(':');
       if (parts.length >= 2) {
@@ -450,7 +456,6 @@
         });
       }
 
-      // Tri chronologique rigoureux, et validés à la fin
       filtered.sort((a, b) => {
         if (a.valide !== b.valide) return a.valide ? 1 : -1;
         let timeA = parseTimeForSort(a.Heure);
@@ -474,7 +479,6 @@
       });
     }
 
-    // Modal Handling
     function setupModals() {
       document.querySelectorAll('.close-modal').forEach(btn => {
         btn.onclick = (e) => {
@@ -510,7 +514,6 @@
       openProfile(newP.id);
     });
 
-    // Profils
     function openProfile(id) {
       currentParticipantId = id;
       const p = participants.find(x => x.id === id);
@@ -548,7 +551,6 @@
       document.getElementById('edit-prenom').value = p.Prenom || '';
       document.getElementById('edit-nom').value = p.Nom || '';
       
-      // Essayer de formater l'heure pour l'input type="time"
       let formattedTime = p.Heure || '';
       if (formattedTime) {
           let timeSortStr = parseTimeForSort(formattedTime);
@@ -729,14 +731,12 @@
       reader.readAsText(file);
     });
 
-    // Export JSON Backup
     document.getElementById('btn-export-json').onclick = () => {
       const dataStr = JSON.stringify(participants, null, 2);
       const blob = new Blob([dataStr], { type: 'application/json' });
       triggerDownload(blob, "sauvegarde_secours_" + activeDate + ".json");
     };
 
-    // Export Excel (.xlsx) Final
     document.getElementById('btn-export-excel').onclick = () => {
       const exportData = participants.map(p => ({
         "Prénom": p.Prenom,
@@ -776,7 +776,6 @@
       showToast("Téléchargement lancé !");
     }
 
-    // Reset Day
     document.getElementById('btn-reset-day').onclick = () => {
       if(confirm(`Voulez-vous effacer uniquement les données du ${activeDate} ? N'oubliez pas d'exporter une sauvegarde avant !`)) {
         participants = participants.filter(p => p.Date !== activeDate);
@@ -786,7 +785,6 @@
       }
     };
 
-    // Reset All
     document.getElementById('btn-reset-all').onclick = () => {
       if(confirm("ATTENTION : Voulez-vous vraiment effacer TOUTES les données de cet appareil ?")) {
         if(confirm("Êtes-vous absolument sûr ? Cette action est irréversible.")) {
