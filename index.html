@@ -6,13 +6,20 @@
   <title>Contrôle des présences</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <style>
+    /* Force background color on html to prevent black blocks in iOS */
+    html {
+      background-color: #0b57d0;
+      min-height: 100vh;
+      height: 100%;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background-color: #0b57d0;
       color: #ffffff;
       margin: 0;
       padding: 0;
-      padding-bottom: 120px;
+      padding-bottom: 150px; /* Increased to ensure content isn't hidden behind search bar */
+      min-height: 100vh;
       box-sizing: border-box;
     }
     #admin-trigger {
@@ -57,6 +64,7 @@
       font-size: 0.9em;
       opacity: 0.8;
     }
+    /* Floating search bar without container background */
     #search-container {
       position: fixed;
       bottom: 20px;
@@ -66,7 +74,7 @@
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
-      z-index: 100;
+      z-index: 500;
     }
     #no-results {
       text-align: center;
@@ -108,7 +116,8 @@
       max-width: 500px;
       border-radius: 16px;
       padding: 20px;
-      max-height: 90vh;
+      padding-bottom: 30px; /* Added extra padding at the bottom */
+      max-height: 80vh; /* Reduced max-height to ensure it doesn't get cut off on iPad/iPhone */
       overflow-y: auto;
       box-sizing: border-box;
     }
@@ -228,6 +237,7 @@
     <input type="text" id="searchInput" placeholder="Rechercher un nom...">
   </div>
 
+  <!-- Profil Modal -->
   <div id="profile-modal" class="modal">
     <div class="modal-content">
       <h2 id="profile-name">nom prénom</h2>
@@ -243,6 +253,7 @@
     </div>
   </div>
 
+  <!-- Edit Modal -->
   <div id="edit-modal" class="modal">
     <div class="modal-content">
       <h2>Modifier les informations</h2>
@@ -269,6 +280,7 @@
     </div>
   </div>
 
+  <!-- Keypad Modal -->
   <div id="keypad-modal" class="modal">
     <div class="modal-content keypad-container">
       <h2>Code requis</h2>
@@ -290,6 +302,7 @@
     </div>
   </div>
 
+  <!-- Admin Modal -->
   <div id="admin-modal" class="modal">
     <div class="modal-content">
       <h2>Menu administrateur</h2>
