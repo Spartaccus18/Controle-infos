@@ -601,7 +601,7 @@ function renderBanners() {
   const add = (txt, err) => { const d = document.createElement('div'); d.className = 'banner' + (err ? ' err' : ''); d.textContent = txt; box.appendChild(d); };
   if (loadWarning) add(loadWarning, true);
   if (!storageOK) add('Le stockage du navigateur est indisponible : les données ne seront pas conservées. Quittez la navigation privée.', true);
-  if ((+store.get(K.CH) || 0) >= 10) add('Sauvegarde conseillée : plusieurs modifications n\'ont pas encore été exportées (menu administrateur).');
+  { const ch = +store.get(K.CH) || 0; if (ch >= 1) add('Non exporté : ' + ch + ' modification(s) (contrôles, corrections, vidéos) ne sont pas encore dans l\'Excel. Menu administrateur → « Excel : planning mis à jour ».'); }
   const nd = participants.filter(p => !p.Date).length;
   if (nd && nd === participants.length) add('Aucune fiche n\'a de date : importez le planning (menu administrateur).');
   const d = new Date();
@@ -1434,6 +1434,7 @@ function updateViewport() {
   r.setProperty('--kb', Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px');
 }
 if (window.visualViewport) { visualViewport.addEventListener('resize', updateViewport); visualViewport.addEventListener('scroll', updateViewport); }
+window.addEventListener('beforeunload', ev => { if ((+store.get(K.CH) || 0) >= 1) { ev.preventDefault(); ev.returnValue = 'Des modifications ne sont pas exportées.'; return ev.returnValue; } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { activeDate = computeActiveDate(); render(); renderBanners(); } });
 
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
