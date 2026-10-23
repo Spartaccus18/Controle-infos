@@ -156,6 +156,7 @@ hr { border:0; border-top:1px solid #dbe6ef; margin:20px 0; }
   <h2 id="profile-name">Nom Prénom</h2>
   <div id="profile-notice"></div>
   <div class="profile-row"><b>Heure</b><span id="profile-time"></span></div>
+  <div class="profile-row"><b>Naissance</b><span id="profile-birth"></span></div>
   <div class="profile-row"><b>Téléphone</b><span id="profile-phone"></span></div>
   <div class="profile-row"><b>Email</b><span id="profile-email"></span></div>
   <div class="profile-row"><b>Adresse</b><span id="profile-address"></span></div>
@@ -173,6 +174,7 @@ hr { border:0; border-top:1px solid #dbe6ef; margin:20px 0; }
   <label>Prénom <input type="text" id="edit-prenom" autocapitalize="words" autocomplete="off"></label>
   <label>Nom <input type="text" id="edit-nom" autocapitalize="words" autocomplete="off"><span class="err" id="err-nom"></span></label>
   <label>Heure <input type="time" id="edit-heure"></label>
+  <label>Date de naissance <input type="text" id="edit-naissance" placeholder="JJ.MM.AAAA" inputmode="numeric" autocomplete="off"><span class="err" id="err-naissance"></span></label>
   <label>Téléphone <input type="tel" id="edit-phone" placeholder="0791234567 ou +41791234567" autocomplete="off"><span class="err" id="err-phone"></span></label>
   <label>Email <input type="email" id="edit-email" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off"><span class="err" id="err-email"></span></label>
   <div class="address-grid g21">
@@ -347,6 +349,19 @@ function normDate(v) {
   if (m && MONTHS[m[2]] && +m[1] >= 1 && +m[1] <= 31) return pad(+m[1]) + '.' + pad(MONTHS[m[2]]);
   return '';
 }
+function normBirth(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number') { try { const p = XLSX.SSF.parse_date_code(v); if (p) return pad(p.d) + '.' + pad(p.m) + '.' + p.y; } catch (e) {} return ''; }
+  const s = String(v).trim();
+  let m = /^(\d{1,2})\s*[.\/-]\s*(\d{1,2})\s*[.\/-]\s*(\d{4})/.exec(s);
+  if (m) return pad(+m[1]) + '.' + pad(+m[2]) + '.' + m[3];
+  m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+  if (m) return pad(+m[3]) + '.' + pad(+m[2]) + '.' + m[1];
+  m = /^(\d{2})(\d{2})(\d{4})$/.exec(s);
+  if (m) return m[1] + '.' + m[2] + '.' + m[3];
+  return cl(s);
+}
+const birthOk = b => /^\d{2}\.\d{2}\.\d{4}$/.test(b);
 function cleanPhone(raw) {
   let s = cl(raw);
   if (!s) return '';
@@ -373,7 +388,7 @@ function sanitize(o) {
     id: cl(o.id) || newId(),
     Prenom: cl(o.Prenom), Nom: cl(o.Nom),
     Date: normDate(o.Date), Heure: normTime(o.Heure),
-    Telephone: tel, Mail: cl(o.Mail), Rue: cl(o.Rue), Numero: cl(o.Numero), CP: cl(o.CP), Localite: cl(o.Localite),
+    Telephone: tel, Naissance: normBirth(o.Naissance), Mail: cl(o.Mail), Rue: cl(o.Rue), Numero: cl(o.Numero), CP: cl(o.CP), Localite: cl(o.Localite),
     valide: !!o.valide, valideAt: o.valideAt || null,
     ajoute: !!o.ajoute, modifie: !!o.modifie,
     champsModifies: Array.isArray(o.champsModifies) ? o.champsModifies.map(cl).filter(Boolean) : [],
@@ -397,6 +412,7 @@ const personKey = p => norm(p.Prenom + ' ' + p.Nom).split(' ').sort().join(' ') 
 const fullName = p => (cl(p.Prenom) + ' ' + cl(p.Nom)).trim() || '(sans nom)';
 function missingFields(p) {
   const m = [];
+  if (!p.Naissance) m.push('date de naissance');
   if (!p.Telephone) m.push('téléphone');
   if (!p.Mail) m.push('email');
   if (!p.Rue || !p.Numero || !p.CP || !p.Localite) m.push('adresse');
@@ -611,6 +627,7 @@ function openProfile(id) {
     n.textContent = 'Confirmé le ' + fmtDateTime(p.valideAt) + '.'; notice.appendChild(n);
   }
   setRow('profile-time', p.Heure);
+  setRow('profile-birth', p.Naissance);
   setRow('profile-phone', p.Telephone);
   setRow('profile-email', p.Mail);
   const line1 = [p.Rue, p.Numero].filter(Boolean).join(' ');
@@ -658,7 +675,7 @@ $('btn-validate').addEventListener('click', async () => {
 });
 
 /* ====================== Édition / ajout ====================== */
-const FIELDS = [['edit-prenom', 'Prenom', 'Prénom'], ['edit-nom', 'Nom', 'Nom'], ['edit-heure', 'Heure', 'Heure'], ['edit-phone', 'Telephone', 'Téléphone'], ['edit-email', 'Mail', 'Email'], ['edit-rue', 'Rue', 'Rue'], ['edit-numero', 'Numero', 'N°'], ['edit-cp', 'CP', 'Code postal'], ['edit-localite', 'Localite', 'Localité']];
+const FIELDS = [['edit-prenom', 'Prenom', 'Prénom'], ['edit-nom', 'Nom', 'Nom'], ['edit-heure', 'Heure', 'Heure'], ['edit-naissance', 'Naissance', 'Date de naissance'], ['edit-phone', 'Telephone', 'Téléphone'], ['edit-email', 'Mail', 'Email'], ['edit-rue', 'Rue', 'Rue'], ['edit-numero', 'Numero', 'N°'], ['edit-cp', 'CP', 'Code postal'], ['edit-localite', 'Localite', 'Localité']];
 function formSnapshot() { return FIELDS.map(f => $(f[0]).value).join('\u0001'); }
 function clearErrors() { document.querySelectorAll('.err').forEach(e => { e.textContent = ''; }); document.querySelectorAll('label input.bad').forEach(i => i.classList.remove('bad')); }
 function setErr(inputId, errId, msg) { $(errId).textContent = msg; $(inputId).classList.add('bad'); }
@@ -691,11 +708,13 @@ $('btn-save-edit').addEventListener('click', async () => {
   const v = {};
   FIELDS.forEach(f => { v[f[1]] = cl($(f[0]).value); });
   v.Telephone = cleanPhone(v.Telephone);
+  v.Naissance = normBirth(v.Naissance);
   let hard = false;
   if (!v.Prenom && !v.Nom) { setErr('edit-nom', 'err-nom', 'Indiquez au moins un nom ou un prénom.'); hard = true; }
   if (v.Mail && !mailOk(v.Mail)) { setErr('edit-email', 'err-email', 'L\'adresse email doit contenir un « @ » et aucun espace.'); hard = true; }
   const soft = [];
   if (v.Telephone && !phoneOk(v.Telephone)) { setErr('edit-phone', 'err-phone', '10 chiffres, ou « + » suivi de 11 chiffres.'); soft.push('Téléphone : 10 chiffres ou « + » suivi de 11 chiffres attendus'); }
+  if (v.Naissance && !birthOk(v.Naissance)) { setErr('edit-naissance', 'err-naissance', 'Format JJ.MM.AAAA attendu.'); soft.push('Date de naissance : format JJ.MM.AAAA attendu'); }
   if (v.Numero && !numOk(v.Numero)) { setErr('edit-numero', 'err-numero', '1 à 3 chiffres, éventuellement une lettre.'); soft.push('N° : 1 à 3 chiffres, éventuellement suivis d\'une lettre'); }
   if (v.CP && !cpOk(v.CP)) { setErr('edit-cp', 'err-cp', '4 chiffres exacts.'); soft.push('Code postal : 4 chiffres exacts attendus'); }
   if (hard) return;
@@ -850,7 +869,7 @@ function headerMap(cells) {
   Object.keys(m).forEach(c => { if (m[c] === 'Numero' && m[+c - 1] !== 'Rue') m[c] = 'No'; });
   return { m, hasName, count };
 }
-const PATCH_FIELDS = ['Nom', 'Prenom', 'Mail', 'Telephone', 'Rue', 'Numero', 'CPLoc', 'CP', 'Localite', 'Date', 'Heure', 'Controle', 'ControleAt'];
+const PATCH_FIELDS = ['Nom', 'Prenom', 'Mail', 'Telephone', 'Rue', 'Numero', 'CPLoc', 'CP', 'Localite', 'Date', 'Heure', 'Naissance', 'Controle', 'ControleAt'];
 function parseWorkbook(wb) {
   const res = { rows: [], sheets: 0, skippedSheets: [], recognized: [], ignored: [], lines: 0, empty: 0, warnings: [], blocks: 0, holes: 0, retires: 0, layout: {}, hdr: null, firstSheet: null };
   wb.SheetNames.forEach(name => {
@@ -886,7 +905,7 @@ function parseWorkbook(wb) {
       const o = {}, orig = {}; let dateCellTime = '', tocco = '', ordre = '';
       Object.keys(map).forEach(c => {
         const f = map[c], val = row[c];
-        if (PATCH_FIELDS.includes(f)) orig[f] = (f === 'Date' || f === 'Heure') ? val : cl(val);
+        if (PATCH_FIELDS.includes(f)) orig[f] = (f === 'Date' || f === 'Heure') ? val : (f === 'Naissance' ? normBirth(val) : cl(val));
         if (f === 'Telephone') o.Telephone = cleanPhone(val);
         else if (f === 'Date') { o.Date = normDate(val); if (typeof val === 'number' && val > 1) dateCellTime = normTime(val); }
         else if (f === 'Heure') o.Heure = normTime(val);
@@ -896,7 +915,8 @@ function parseWorkbook(wb) {
         else if (f === 'ControleAt') { const m = /^(\d{2})\.(\d{2}) à (\d{2}):(\d{2})$/.exec(cl(val)); if (m) o.valideAt = new Date(new Date().getFullYear(), +m[2] - 1, +m[1], +m[3], +m[4]).toISOString(); }
         else if (f === 'Arrond' || f === 'Election') { /* conservés dans le fichier d'origine */ }
         else if (f === 'No') ordre = cl(val);
-        else if (f === 'Naissance' || f === 'Ethique') { /* conservés tels quels dans le fichier d'origine */ }
+        else if (f === 'Naissance') o.Naissance = normBirth(val);
+        else if (f === 'Ethique') { /* conservé tel quel dans le fichier d'origine */ }
         else o[f] = cl(val);
       });
       if (o.full) { const p = o.full.split(' '); o.Prenom = p[0]; o.Nom = p.slice(1).join(' '); delete o.full; }
@@ -1035,15 +1055,15 @@ $('btn-undo').addEventListener('click', async () => {
 /* ====================== Exports ====================== */
 function exportRows(list) {
   return list.map(p => ({
-    'Prénom': p.Prenom, 'Nom': p.Nom, 'Date': p.Date, 'Heure': p.Heure, 'Téléphone': p.Telephone, 'Mail': p.Mail,
+    'Prénom': p.Prenom, 'Nom': p.Nom, 'Date': p.Date, 'Heure': p.Heure, 'Date de naissance': p.Naissance, 'Téléphone': p.Telephone, 'Mail': p.Mail,
     'Rue': p.Rue, 'N°': p.Numero, 'Code Postal': p.CP, 'Localité': p.Localite,
     'Validé': p.valide ? 'Oui' : 'Non', 'Heure de validation': p.valideAt ? fmtDateTime(p.valideAt) : '',
     'Ajouté sur place': p.ajoute ? 'Oui' : 'Non', 'Modifié sur place': p.modifie ? 'Oui' : 'Non', 'Champs modifiés': p.champsModifies.join(', ')
   }));
 }
 function addSheet(wb, name, list) {
-  const ws = XLSX.utils.json_to_sheet(exportRows(list), { header: ['Prénom', 'Nom', 'Date', 'Heure', 'Téléphone', 'Mail', 'Rue', 'N°', 'Code Postal', 'Localité', 'Validé', 'Heure de validation', 'Ajouté sur place', 'Modifié sur place', 'Champs modifiés'] });
-  ws['!cols'] = [14, 18, 8, 8, 17, 28, 26, 6, 11, 20, 8, 20, 10, 10, 24].map(w => ({ wch: w }));
+  const ws = XLSX.utils.json_to_sheet(exportRows(list), { header: ['Prénom', 'Nom', 'Date', 'Heure', 'Date de naissance', 'Téléphone', 'Mail', 'Rue', 'N°', 'Code Postal', 'Localité', 'Validé', 'Heure de validation', 'Ajouté sur place', 'Modifié sur place', 'Champs modifiés'] });
+  ws['!cols'] = [14, 18, 8, 8, 14, 17, 28, 26, 6, 11, 20, 8, 20, 10, 10, 24].map(w => ({ wch: w }));
   if (ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] };
   XLSX.utils.book_append_sheet(wb, ws, name);
 }
@@ -1119,9 +1139,11 @@ function setCellText(doc, rowEl, col, text, num) {
   }
   while (cEl.firstChild) cEl.removeChild(cEl.firstChild);
   cEl.removeAttribute('t');
+  if (num === 'birth' && !birthOk(text)) num = undefined;
   if (text !== '' && num) {
     let v;
-    if (num === 'date') { const m = /^(\d{2})\.(\d{2})$/.exec(text); v = Math.round((Date.UTC(2026, +m[2] - 1, +m[1]) - Date.UTC(1899, 11, 30)) / 86400000); }
+    if (num === 'birth') { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(text); v = Math.round((Date.UTC(+m[3], +m[2] - 1, +m[1]) - Date.UTC(1899, 11, 30)) / 86400000); }
+    else if (num === 'date') { const m = /^(\d{2})\.(\d{2})$/.exec(text); v = Math.round((Date.UTC(2026, +m[2] - 1, +m[1]) - Date.UTC(1899, 11, 30)) / 86400000); }
     else { const m = /^(\d{2}):(\d{2})$/.exec(text); v = (+m[1] * 60 + +m[2]) / 1440; }
     const ve = doc.createElementNS(NS_MAIN, 'v'); ve.textContent = String(v); cEl.appendChild(ve);
   } else if (text !== '') {
@@ -1143,6 +1165,7 @@ function changedCells(p, lay) {
   const o = p.src.o || {}, out = [];
   const put = (f, now, same, num) => { if (lay[f] != null && o[f] !== undefined && !same) out.push({ f, col: lay[f], text: now, num }); };
   put('Date', p.Date, normDate(o.Date) === p.Date, 'date');
+  put('Naissance', p.Naissance, normBirth(o.Naissance) === p.Naissance, 'birth');
   put('Heure', p.Heure, normTime(o.Heure) === p.Heure, 'time');
   put('Controle', p.valide ? 'Oui' : '', /^(oui|x|ok|1|vrai|yes)$/i.test(cl(o.Controle)) === !!p.valide);
   const cAt = p.valide && p.valideAt ? fmtDateTime(p.valideAt) : '';
@@ -1208,7 +1231,7 @@ function buildListeXlsx() {
       for (let c = 0; c < meta.hdr.length; c++) { const ce = doc.createElementNS(NS_MAIN, 'c'); ce.setAttribute('r', colLetter(c) + rn); if (sty[c]) ce.setAttribute('s', sty[c]); rowEl.appendChild(ce); }
       sd.appendChild(rowEl);
       const set = (f, t, num) => { if (mainLay[f] != null && t !== '') setCellText(doc, rowEl, mainLay[f], t, num); };
-      set('Date', p.Date, 'date'); set('Heure', p.Heure, 'time'); set('Nom', p.Nom); set('Prenom', p.Prenom); set('Mail', p.Mail); set('Telephone', p.Telephone);
+      set('Date', p.Date, 'date'); set('Heure', p.Heure, 'time'); set('Naissance', p.Naissance, 'birth'); set('Nom', p.Nom); set('Prenom', p.Prenom); set('Mail', p.Mail); set('Telephone', p.Telephone);
       if (mainLay.Numero != null) { set('Rue', p.Rue); set('Numero', p.Numero); } else set('Rue', adresseTexte(p));
       set('CPLoc', communeTexte(p)); set('CP', p.CP); set('Localite', p.Localite);
       set('Controle', p.valide ? 'Oui' : ''); set('ControleAt', p.valide && p.valideAt ? fmtDateTime(p.valideAt) : '');
