@@ -228,6 +228,16 @@ label input[type="time"]::-webkit-datetime-edit { padding:0; }
   <h2>Menu administrateur</h2>
   <div id="admin-message"></div>
 
+  <h3>Dashboard (synchronisation)</h3>
+  <p class="help-text" id="sync-status" style="margin:0 0 10px"></p>
+  <button id="btn-sync-now" class="btn-primary" style="width:100%">Synchroniser maintenant</button>
+  <label style="margin-top:12px">Clé iPad (onglet Shooting du dashboard)
+    <input type="password" id="sync-key" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Coller la clé ici">
+  </label>
+  <button id="btn-sync-key" class="btn-secondary" style="width:100%">Enregistrer la clé</button>
+  <p class="help-text">Les présences et les corrections partent au dashboard dès qu'elles sont faites ; sans réseau, elles attendent sur l'iPad et partent dès que la connexion revient. La liste du jour est mise à jour toutes les minutes.</p>
+  <hr>
+
   <h3>Date du shooting</h3>
   <select id="admin-date-select"></select>
   <p class="help-text" id="admin-date-help"></p>
@@ -307,9 +317,11 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
 'use strict';
 /* ====================== Configuration ====================== */
 const ADMIN_PIN = '1848';
-const VALID_DATES = ['27.10', '29.10', '31.10', '04.11', '07.11'];
+const VALID_DATES = ['27.10', '29.10', '31.10', '04.11', '07.11', '14.11'];
 const LOCK_DELAY_MS = 180000;
-const K = { P:'shooting_participants', FORCED:'shooting_date_forced', SNAP:'shooting_snapshot', BK:'shooting_last_backup', CH:'shooting_changes', LOCK:'shooting_lock', BAD:'shooting_participants_illisible', XLS:'shooting_xlsx_origine', LAY:'shooting_xlsx_structure' };
+const SYNC_URL = 'https://plr-vd.contentcamp.ch/ipad/api';   // dashboard PLR Vaud (module Shooting)
+const SYNC_EVERY_MS = 60000;
+const K = { P:'shooting_participants', FORCED:'shooting_date_forced', SNAP:'shooting_snapshot', BK:'shooting_last_backup', CH:'shooting_changes', LOCK:'shooting_lock', BAD:'shooting_participants_illisible', XLS:'shooting_xlsx_origine', LAY:'shooting_xlsx_structure', KEY:'shooting_sync_key', Q:'shooting_sync_queue', SYNC:'shooting_sync_last', DEV:'shooting_device' };
 const MONTHS = { janv:1, janvier:1, fevr:2, fevrier:2, mars:3, avr:4, avril:4, mai:5, juin:6, juil:7, juillet:7, aout:8, sept:9, septembre:9, oct:10, octobre:10, nov:11, novembre:11, dec:12, decembre:12 };
 
 /* ====================== Utilitaires ====================== */
@@ -411,7 +423,7 @@ function sanitize(o) {
   o = o || {};
   const tel = cl(o.Telephone);
   const p = {
-    id: cl(o.id) || newId(),
+    id: cl(o.id) || newId(), cid: cl(o.cid),
     Prenom: cl(o.Prenom), Nom: cl(o.Nom),
     Date: normDate(o.Date), Heure: normTime(o.Heure),
     Telephone: tel, Naissance: normBirth(o.Naissance), Mail: cl(o.Mail), Rue: cl(o.Rue), Numero: cl(o.Numero), CP: cl(o.CP), Localite: cl(o.Localite),
@@ -457,6 +469,133 @@ let loadWarning = '';
 let editMode = 'edit';
 let editInitial = '';
 let pendingImport = null;
+
+/* ====================== Synchronisation avec le dashboard ======================
+   Envoi : chaque présence, correction ou ajout devient une opération dans une file
+   (localStorage), envoyée à SYNC_URL/sync ; sans réseau, elle attend et repart seule.
+   Réception : SYNC_URL/roster (liste des candidats, heures, coordonnées, vidéos) toutes
+   les minutes. Un champ encore en attente d'envoi n'est jamais écrasé par le serveur. */
+const sync = { key: store.get(K.KEY) || '', busy: false, again: false, timer: null, last: store.get(K.SYNC) || '', err: '', authErr: false };
+function deviceId() { let d = store.get(K.DEV); if (!d) { d = 'accueil-' + newId().slice(0, 8); store.set(K.DEV, d); } return d; }
+function syncQueue() { try { const q = JSON.parse(store.get(K.Q) || '[]'); return Array.isArray(q) ? q : []; } catch (e) { return []; } }
+function setQueue(q) { store.set(K.Q, JSON.stringify(q)); }
+function queueOp(op) {
+  if (!sync.key) return;
+  const q = syncQueue(); q.push(Object.assign({ op_id: newId(), at: new Date().toISOString() }, op)); setQueue(q);
+  scheduleSync(300);
+}
+function pendingFor(p) {
+  const s = new Set();
+  syncQueue().forEach(o => {
+    if (!((p.cid && o.cid === p.cid) || o.local_id === p.id)) return;
+    Object.keys(o.fields || {}).forEach(k => s.add(k));
+    if ('valide' in o) s.add('valide');
+    if (o.date || o.ajoute) s.add('Date');
+  });
+  return s;
+}
+function readKeyFromHash() {
+  const m = /[#&]cle=([^&]+)/.exec(location.hash || '');
+  if (!m) return;
+  sync.key = decodeURIComponent(m[1]).trim(); store.set(K.KEY, sync.key); sync.authErr = false;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+}
+function syncStatsText() {
+  if (!sync.key) return '';
+  if (sync.authErr) return ' · ⚠ dashboard : clé refusée';
+  const n = syncQueue().length;
+  if (n) return ' · ' + n + ' en attente d\'envoi';
+  return sync.last ? ' · ✓ dashboard ' + fmtDateTime(sync.last).replace(/^.* à /, '') : '';
+}
+async function api(path, opts) {
+  opts = opts || {};
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch(SYNC_URL + path, Object.assign({}, opts, { cache: 'no-store', signal: ctl.signal, headers: Object.assign({ 'X-Ipad-Key': sync.key }, opts.headers || {}) }));
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { sync.authErr = true; throw new Error(j.error || 'Clé refusée'); }
+    if (!r.ok) throw new Error(j.error || ('Erreur ' + r.status));
+    sync.authErr = false;
+    return j;
+  } finally { clearTimeout(t); }
+}
+function scheduleSync(ms) {
+  if (!sync.key) return;
+  clearTimeout(sync.timer); sync.timer = setTimeout(runSync, ms || 0);
+}
+async function runSync() {
+  if (!sync.key) return;
+  if (sync.busy) { sync.again = true; return; }
+  sync.busy = true;
+  try {
+    await pushQueue();
+    if (!$('edit-modal').classList.contains('active') && !$('import-modal').classList.contains('active')) {
+      mergeRoster(await api('/roster'));
+    }
+    sync.last = new Date().toISOString(); store.set(K.SYNC, sync.last); sync.err = '';
+  } catch (e) {
+    sync.err = e && e.name === 'AbortError' ? 'délai dépassé' : (e && e.message) || String(e);
+  } finally {
+    sync.busy = false;
+    renderBanners(); render(); refreshSyncAdmin();
+    if (sync.again) { sync.again = false; scheduleSync(200); }
+    else if (syncQueue().length) scheduleSync(20000);
+  }
+}
+async function pushQueue() {
+  const q = syncQueue(); if (!q.length) return;
+  const batch = q.slice(0, 200);
+  const res = await api('/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: deviceId(), ops: batch }) });
+  Object.entries(res.ids || {}).forEach(([lid, cid]) => { const p = participants.find(x => x.id === lid); if (p) p.cid = cid; });
+  // Opérations appliquées, ou refusées (fiche supprimée du dashboard) : on les retire de la file
+  const gone = new Set((res.applied || []).concat((res.errors || []).map(e => e.op_id)));
+  const rest = syncQueue().filter(o => !gone.has(o.op_id)).map(o => {
+    if (!o.cid && o.local_id && res.ids && res.ids[o.local_id]) o.cid = res.ids[o.local_id];
+    return o;
+  });
+  setQueue(rest);
+  saveData(false);
+  if (rest.length && gone.size) await pushQueue();
+}
+function mergeRoster(data) {
+  if (!data || !Array.isArray(data.candidates)) return;
+  const toDM = iso => /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.slice(8, 10) + '.' + iso.slice(5, 7) : '';
+  const byCid = new Map(participants.filter(p => p.cid).map(p => [p.cid, p]));
+  const seen = new Set();
+  data.candidates.forEach(s => {
+    let p = byCid.get(s.id);
+    if (!p) {   // fiche importée d'un Excel avant la synchronisation : rattachement par le nom
+      const k = tkey(s.prenom + ' ' + s.nom);
+      p = participants.find(x => !x.cid && tkey(x.Prenom + ' ' + x.Nom) === k);
+      if (p) p.cid = s.id;
+    }
+    const tel = cleanPhone(s.phone);
+    const srv = { Prenom: cl(s.prenom), Nom: cl(s.nom), Date: toDM(s.date), Heure: normTime(s.time), Telephone: phoneOk(tel) ? formatPhone(tel) : cl(s.phone),
+      Mail: cl(s.email), Naissance: normBirth(s.naissance), Rue: cl(s.rue), Numero: cl(s.numero), CP: cl(s.cp), Localite: cl(s.localite) };
+    if (!p) { p = sanitize(Object.assign({ cid: s.id }, srv)); participants.push(p); }
+    const pf = pendingFor(p);
+    Object.keys(srv).forEach(k => {
+      if (pf.has(k)) return;
+      if ((k === 'Date' || k === 'Heure') && (!srv[k] || p.champsModifies.includes(k === 'Date' ? 'Date' : 'Heure'))) return;
+      p[k] = srv[k];
+    });
+    if (!pf.has('valide')) { p.valide = !!s.checked_in_at; p.valideAt = s.checked_in_at ? new Date(s.checked_in_at).toISOString() : null; }
+    if (s.video) mergeVideo(p, s.video);
+    seen.add(p.id);
+  });
+  // Fiche retirée du dashboard : on l'enlève, sauf si elle a été touchée sur place
+  participants = participants.filter(p => !p.cid || seen.has(p.id) || p.modifie || p.valide || p.ajoute || pendingFor(p).size);
+  saveData(false);
+}
+function refreshSyncAdmin() {
+  const el = $('sync-status'); if (!el) return;
+  const n = syncQueue().length;
+  if (!sync.key) { el.textContent = 'Non connecté au dashboard : collez la clé iPad ci-dessous (ou ouvrez le lien donné dans l\'onglet Shooting).'; el.className = 'help-text warn'; return; }
+  el.className = 'help-text' + (sync.err || sync.authErr ? ' warn' : '');
+  el.textContent = (sync.authErr ? 'Clé refusée par le dashboard. ' : sync.err ? 'Dernière tentative échouée (' + sync.err + '). ' : '') +
+    (sync.last ? 'Dernière synchronisation : ' + fmtDateTime(sync.last) + '. ' : 'Jamais synchronisé. ') +
+    (n ? n + ' modification(s) en attente d\'envoi.' : 'Tout est envoyé.');
+}
 
 function autoDate() {
   const d = new Date(), md = (d.getMonth() + 1) * 100 + d.getDate();
@@ -587,7 +726,7 @@ function render() {
   dd.append(s1, ' ', s2);
   const day = participants.filter(p => p.Date === activeDate);
   const done = day.filter(p => p.valide).length;
-  $('stats').textContent = day.length ? done + ' / ' + day.length + ' confirmés · ' + (day.length - done) + ' à venir' : '';
+  $('stats').textContent = (day.length ? done + ' / ' + day.length + ' confirmés · ' + (day.length - done) + ' à venir' : '') + syncStatsText();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
   const toks = tokens();
   let list, others = [];
@@ -621,7 +760,11 @@ function renderBanners() {
   const add = (txt, err) => { const d = document.createElement('div'); d.className = 'banner' + (err ? ' err' : ''); d.textContent = txt; box.appendChild(d); };
   if (loadWarning) add(loadWarning, true);
   if (!storageOK) add('Le stockage du navigateur est indisponible : les données ne seront pas conservées. Quittez la navigation privée.', true);
-  { const ch = +store.get(K.CH) || 0; if (ch >= 1) add('Non exporté : ' + ch + ' modification(s) (contrôles, corrections, vidéos) ne sont pas encore dans l\'Excel. Menu administrateur → « Excel : planning mis à jour ».'); }
+  if (sync.key) {
+    const n = syncQueue().length;
+    if (sync.authErr) add('Dashboard : la clé de synchronisation est refusée. Menu administrateur → « Dashboard ».', true);
+    else if (n) add('En attente d\'envoi au dashboard : ' + n + ' modification(s). Elles partiront toutes seules dès que le réseau revient.');
+  } else { const ch = +store.get(K.CH) || 0; if (ch >= 1) add('Non exporté : ' + ch + ' modification(s) (contrôles, corrections, vidéos) ne sont pas encore dans l\'Excel. Menu administrateur → « Excel : planning mis à jour ».'); }
   const nd = participants.filter(p => !p.Date).length;
   if (nd && nd === participants.length) add('Aucune fiche n\'a de date : importez le planning (menu administrateur).');
   const d = new Date();
@@ -673,11 +816,13 @@ $('btn-attach').addEventListener('click', () => {
   const old = p.Date;
   p.Date = activeDate; p.modifie = true;
   if (!p.champsModifies.includes('Date')) p.champsModifies.push('Date');
+  queueOp({ cid: p.cid || null, local_id: p.id, date: activeDate });
   saveData(); render(); openProfile(p.id);
   toast('« ' + fullName(p) + ' » rattaché au ' + activeDate + (old ? ' (prévu le ' + old + ')' : ''));
 });
 async function setValidated(p, val) {
   p.valide = val; p.valideAt = val ? new Date().toISOString() : null;
+  queueOp({ cid: p.cid || null, local_id: p.id, valide: val });
   saveData();
 }
 $('btn-validate').addEventListener('click', async () => {
@@ -762,15 +907,19 @@ $('btn-save-edit').addEventListener('click', async () => {
       if (r !== 'new') return;
     }
     const p = sanitize(Object.assign({ Date: activeDate, ajoute: true }, v));
-    participants.push(p); saveData();
+    participants.push(p);
+    const fields = {}; FIELDS.forEach(f => { if (p[f[1]]) fields[f[1]] = p[f[1]]; });
+    queueOp({ ajoute: true, local_id: p.id, date: p.Date, fields });
+    saveData();
     closeModal('edit-modal'); clearSearch(); render(); openProfile(p.id);
     return;
   }
   const p = participants.find(x => x.id === currentId);
   if (p) {
-    const changed = [];
-    FIELDS.forEach(f => { if ((p[f[1]] || '') !== (v[f[1]] || '')) changed.push(f[2]); });
+    const changed = [], fields = {};
+    FIELDS.forEach(f => { if ((p[f[1]] || '') !== (v[f[1]] || '')) { changed.push(f[2]); fields[f[1]] = v[f[1]] || ''; } });
     Object.assign(p, v);
+    if (changed.length) queueOp({ cid: p.cid || null, local_id: p.id, fields });
     if (changed.length) { p.modifie = true; changed.forEach(c => { if (!p.champsModifies.includes(c)) p.champsModifies.push(c); }); }
     saveData(); render();
   }
@@ -832,6 +981,7 @@ function refreshAdmin() {
   const noDate = participants.filter(p => !p.Date).length;
   if (noDate) { const div = document.createElement('div'); div.className = 'stat-line'; div.textContent = 'Sans date : ' + noDate; c.appendChild(div); }
   $('backup-status').textContent = backupStatusText();
+  refreshSyncAdmin(); $('sync-key').value = sync.key;
   $('btn-export-xls-day').textContent = 'Excel : suivi de la journée du ' + activeDate;
   $('chk-lock').checked = store.get(K.LOCK) !== '0';
   const u = $('btn-undo'); let s = null;
@@ -843,6 +993,13 @@ $('admin-date-select').addEventListener('change', e => {
   else store.set(K.FORCED, JSON.stringify({ date: e.target.value, on: isoToday() }));
   activeDate = computeActiveDate(); clearSearch(); render(); refreshAdmin();
   adminMsg('La date a bien été enregistrée.');
+});
+$('btn-sync-now').addEventListener('click', () => { if (!sync.key) { adminMsg('Collez d\'abord la clé iPad.'); return; } $('sync-status').textContent = 'Synchronisation…'; scheduleSync(0); });
+$('btn-sync-key').addEventListener('click', () => {
+  sync.key = cl($('sync-key').value); sync.authErr = false; sync.err = '';
+  if (sync.key) store.set(K.KEY, sync.key); else store.del(K.KEY);
+  refreshSyncAdmin(); renderBanners(); render();
+  if (sync.key) { adminMsg('Clé enregistrée : synchronisation en cours.'); scheduleSync(0); } else adminMsg('Synchronisation désactivée.');
 });
 $('chk-lock').addEventListener('change', e => { store.set(K.LOCK, e.target.checked ? '1' : '0'); resetLockTimer(); });
 
@@ -1454,15 +1611,19 @@ function updateViewport() {
   r.setProperty('--kb', Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px');
 }
 if (window.visualViewport) { visualViewport.addEventListener('resize', updateViewport); visualViewport.addEventListener('scroll', updateViewport); }
-window.addEventListener('beforeunload', ev => { if ((+store.get(K.CH) || 0) >= 1) { ev.preventDefault(); ev.returnValue = 'Des modifications ne sont pas exportées.'; return ev.returnValue; } });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { activeDate = computeActiveDate(); render(); renderBanners(); } });
+window.addEventListener('beforeunload', ev => { if (sync.key ? syncQueue().length : (+store.get(K.CH) || 0) >= 1) { ev.preventDefault(); ev.returnValue = 'Des modifications ne sont pas exportées.'; return ev.returnValue; } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { activeDate = computeActiveDate(); render(); renderBanners(); scheduleSync(500); } });
 
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
 
 loadData();
+readKeyFromHash();
 renderBanners();
 render();
 resetLockTimer();
+scheduleSync(800);
+setInterval(() => scheduleSync(0), SYNC_EVERY_MS);
+window.addEventListener('online', () => scheduleSync(500));
 </script>
 </body>
 </html>
