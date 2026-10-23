@@ -213,10 +213,8 @@ hr { border:0; border-top:1px solid #dbe6ef; margin:20px 0; }
   <hr>
 
   <h3>Importer des données</h3>
-  <button id="btn-import-xls" class="btn-secondary" style="width:100%">Importer la liste (Excel ou CSV)</button>
+  <button id="btn-import-xls" class="btn-secondary" style="width:100%">Importer le planning (Excel ou CSV)</button>
   <input type="file" id="fileXls" accept=".xlsx,.xls,.csv,.txt,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="display:none">
-  <button id="btn-import-plan" class="btn-secondary" style="width:100%; margin-top:10px">Importer le planning (dates et heures)</button>
-  <input type="file" id="filePlan" accept=".xlsx,.xls,.csv,.txt,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" style="display:none">
   <button id="btn-import-json" class="btn-secondary" style="width:100%; margin-top:10px">Restaurer une sauvegarde (JSON)</button>
   <input type="file" id="fileJson" accept=".json,application/json" style="display:none">
   <button id="btn-undo" class="btn-secondary" style="width:100%; margin-top:10px; display:none"></button>
@@ -225,8 +223,8 @@ hr { border:0; border-top:1px solid #dbe6ef; margin:20px 0; }
 
   <h3>Exporter les données</h3>
   <p class="help-text" id="backup-status" style="margin:0 0 10px"></p>
-  <button id="btn-export-liste" class="btn-primary" style="width:100%">Excel : liste mise à jour (format Candidats_GC)</button>
-  <p class="help-text" style="margin:6px 0 10px">Reprend votre fichier d'origine, avec les corrections faites sur place.</p>
+  <button id="btn-export-liste" class="btn-primary" style="width:100%">Excel : planning mis à jour</button>
+  <p class="help-text" style="margin:6px 0 10px">Reprend le fichier Planning importé, avec les corrections et les contrôles faits sur place.</p>
   <button id="btn-export-xls-day" class="btn-secondary" style="width:100%"></button>
   <button id="btn-export-xls-all" class="btn-secondary" style="width:100%; margin-top:10px">Excel : suivi, toutes les dates</button>
   <button id="btn-export-json" class="btn-secondary" style="width:100%; margin-top:10px">Sauvegarde de secours (JSON)</button>
@@ -246,7 +244,7 @@ hr { border:0; border-top:1px solid #dbe6ef; margin:20px 0; }
 
 <!-- Aperçu import -->
 <div id="import-modal" class="modal"><div class="modal-content">
-  <h2>Importer la liste</h2>
+  <h2>Importer le planning</h2>
   <div id="import-summary"></div>
   <label style="margin-top:12px">Date par défaut pour les lignes sans date valide
     <select id="import-default-date"></select>
@@ -582,7 +580,7 @@ function renderBanners() {
   if (!storageOK) add('Le stockage du navigateur est indisponible : les données ne seront pas conservées. Quittez la navigation privée.', true);
   if ((+store.get(K.CH) || 0) >= 10) add('Sauvegarde conseillée : plusieurs modifications n\'ont pas encore été exportées (menu administrateur).');
   const nd = participants.filter(p => !p.Date).length;
-  if (nd) add(nd + ' fiche(s) sans date : importez le planning (menu administrateur).');
+  if (nd && nd === participants.length) add('Aucune fiche n\'a de date : importez le planning (menu administrateur).');
   const d = new Date();
   if (participants.length && ((d.getMonth() + 1) * 100 + d.getDate()) > 1107) add('Shooting terminé : exportez les données puis effacez-les (menu administrateur).');
 }
@@ -807,6 +805,10 @@ const HEADER_RULES = [
   ['full', /^(nom et prenom|nom prenom|prenom nom|nom complet|participant|candidat|personne|invite)$/],
   ['Prenom', /^(prenom|prenoms|first ?name|given ?name)$/],
   ['Nom', /^(nom|nom de famille|nom famille|last ?name|surname|name|famille)$/],
+  ['Arrond', /^(arrondissement|district|zone|region)$/],
+  ['Election', /^(election|elections|scrutin|gc ce)$/],
+  ['Controle', /^(controle|controle effectue|controlee?|valide|present|arrive)$/],
+  ['ControleAt', /^(heure (du )?controle|heure (de )?validation|heure d arrivee)$/],
   ['Naissance', /^(date (de )?naissance|naissance|date naiss|ne le|nee? le)$/],
   ['Ethique', /^(ethique|etique|ethics?)$/],
   ['Tocco', /^tocco$/],
@@ -820,7 +822,7 @@ const HEADER_RULES = [
   ['Telephone', /(^|\s)(tel|telephone|mobile|natel|portable|phone|gsm)(\s|$)/],
   ['Mail', /(mail|courriel)/]
 ];
-const FIELD_LABEL = { full: 'Nom complet', Prenom: 'Prénom', Nom: 'Nom', Date: 'Date', Heure: 'Heure', CPLoc: 'NPA + localité', CP: 'Code postal', Localite: 'Localité', Numero: 'N°', Rue: 'Rue', Telephone: 'Téléphone', Mail: 'Email', Naissance: 'Date de naissance', Ethique: 'Éthique', Tocco: 'Tocco', No: 'N° d\'ordre' };
+const FIELD_LABEL = { full: 'Nom complet', Prenom: 'Prénom', Nom: 'Nom', Date: 'Date', Heure: 'Heure', CPLoc: 'NPA + localité', CP: 'Code postal', Localite: 'Localité', Numero: 'N°', Rue: 'Rue', Telephone: 'Téléphone', Mail: 'Email', Naissance: 'Date de naissance', Ethique: 'Éthique', Tocco: 'Tocco', Arrond: 'Arrondissement', Election: 'Élection', Controle: 'Contrôlé', ControleAt: 'Heure du contrôle', No: 'N° d\'ordre' };
 function fieldForHeader(h) {
   const s = norm(String(h).replace(/[°º]/g, '')).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!s) return null;
@@ -848,7 +850,7 @@ function headerMap(cells) {
   Object.keys(m).forEach(c => { if (m[c] === 'Numero' && m[+c - 1] !== 'Rue') m[c] = 'No'; });
   return { m, hasName, count };
 }
-const PATCH_FIELDS = ['Nom', 'Prenom', 'Mail', 'Telephone', 'Rue', 'Numero', 'CPLoc', 'CP', 'Localite'];
+const PATCH_FIELDS = ['Nom', 'Prenom', 'Mail', 'Telephone', 'Rue', 'Numero', 'CPLoc', 'CP', 'Localite', 'Date', 'Heure', 'Controle', 'ControleAt'];
 function parseWorkbook(wb) {
   const res = { rows: [], sheets: 0, skippedSheets: [], recognized: [], ignored: [], lines: 0, empty: 0, warnings: [], blocks: 0, holes: 0, retires: 0, layout: {}, hdr: null, firstSheet: null };
   wb.SheetNames.forEach(name => {
@@ -884,12 +886,15 @@ function parseWorkbook(wb) {
       const o = {}, orig = {}; let dateCellTime = '', tocco = '', ordre = '';
       Object.keys(map).forEach(c => {
         const f = map[c], val = row[c];
-        if (PATCH_FIELDS.includes(f)) orig[f] = cl(val);
+        if (PATCH_FIELDS.includes(f)) orig[f] = (f === 'Date' || f === 'Heure') ? val : cl(val);
         if (f === 'Telephone') o.Telephone = cleanPhone(val);
         else if (f === 'Date') { o.Date = normDate(val); if (typeof val === 'number' && val > 1) dateCellTime = normTime(val); }
         else if (f === 'Heure') o.Heure = normTime(val);
         else if (f === 'CPLoc') { const [a, b] = parseCommune(val); o.CP = a; o.Localite = b; }
         else if (f === 'Tocco') tocco = cl(val);
+        else if (f === 'Controle') o.valide = /^(oui|x|ok|1|vrai|yes)$/i.test(cl(val));
+        else if (f === 'ControleAt') { const m = /^(\d{2})\.(\d{2}) à (\d{2}):(\d{2})$/.exec(cl(val)); if (m) o.valideAt = new Date(new Date().getFullYear(), +m[2] - 1, +m[1], +m[3], +m[4]).toISOString(); }
+        else if (f === 'Arrond' || f === 'Election') { /* conservés dans le fichier d'origine */ }
         else if (f === 'No') ordre = cl(val);
         else if (f === 'Naissance' || f === 'Ethique') { /* conservés tels quels dans le fichier d'origine */ }
         else o[f] = cl(val);
@@ -935,7 +940,7 @@ function showImportPreview(res, fname) {
   const byDate = {}; res.rows.forEach(r => { const k = r.Date || 'à définir'; byDate[k] = (byDate[k] || 0) + 1; });
   line('Répartition : ' + Object.keys(byDate).map(k => k + ' : ' + byDate[k]).join(' · '));
   const unk = res.rows.filter(r => r._dateInconnue).length;
-  if (unk === res.rows.length) line('Le fichier ne contient ni date ni heure de passage : après l\'import, utilisez « Importer le planning » (menu administrateur) pour les renseigner.', true);
+  if (unk === res.rows.length) line('Le fichier ne contient aucune date de passage : les fiches seront sans date et n\'apparaîtront pas dans les listes du jour.', true);
   else if (unk) line(unk + ' ligne(s) sans date valide (dates acceptées : ' + VALID_DATES.join(', ') + ').', true);
   res.warnings.forEach(w => line(w, true));
   if (res.blocks > 1) line('Plusieurs listes par feuille détectées (en-têtes répétés) : toutes les lignes sont lues.');
@@ -954,7 +959,7 @@ function showImportPreview(res, fname) {
   const sel = $('import-default-date'); sel.innerHTML = '';
   const o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Laisser sans date (planning à importer)'; sel.appendChild(o0);
   VALID_DATES.forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; sel.appendChild(o); });
-  sel.value = unk === res.rows.length ? '' : activeDate;
+  sel.value = '';
   closeModal('admin-modal'); openModal('import-modal');
 }
 function applyImport(mode) {
@@ -992,51 +997,6 @@ $('btn-import-replace').addEventListener('click', async () => {
   applyImport('replace');
 });
 $('btn-import-cancel').addEventListener('click', () => { pendingImport = null; closeModal('import-modal'); openAdmin(); });
-
-/* ====================== Import du planning (dates et heures) ====================== */
-$('btn-import-plan').addEventListener('click', () => { $('filePlan').value = ''; $('filePlan').click(); });
-$('filePlan').addEventListener('change', async e => {
-  const file = e.target.files[0]; if (!file) return;
-  try {
-    if (!participants.length) { await info('Liste vide', 'Importez d\'abord la liste des candidats, puis le planning.'); return; }
-    const res = parseWorkbook(await readWorkbook(file));
-    if (!res.rows.length) { await info('Aucune ligne lue', 'Le fichier doit contenir une colonne de noms (« Nom complet » ou « Nom » et « Prénom »), « Date » et « Heure ».'); return; }
-    const tkey = s => norm(s).split(' ').filter(Boolean).sort().join(' ');
-    const byKey = new Map();
-    participants.forEach(p => { const k = tkey(p.Prenom + ' ' + p.Nom); if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(p); });
-    const used = new Set(), exact = [], approx = [], none = [];
-    res.rows.forEach(r => {
-      const full = cl((r.Prenom || '') + ' ' + (r.Nom || ''));
-      const c = (byKey.get(tkey(full)) || []).filter(p => !used.has(p.id));
-      if (c.length) { used.add(c[0].id); exact.push([c[0], r]); } else none.push(r);
-    });
-    none.slice().forEach(r => {
-      const t = norm((r.Prenom || '') + ' ' + (r.Nom || '')).split(' ').filter(Boolean);
-      const pool = participants.filter(p => {
-        if (used.has(p.id)) return false;
-        const pt = norm(p.Prenom + ' ' + p.Nom).split(' ').filter(Boolean);
-        const common = t.filter(x => pt.includes(x)).length;
-        return common >= 2 && common >= t.length - 1 && common >= pt.length - 1;
-      });
-      if (pool.length === 1) { used.add(pool[0].id); approx.push([pool[0], r]); none.splice(none.indexOf(r), 1); }
-    });
-    const sansCreneau = participants.filter(p => !used.has(p.id)).length;
-    const items = [];
-    approx.forEach(([p, r]) => items.push('À vérifier : « ' + cl(r.Prenom + ' ' + r.Nom) + ' » (planning) ↔ « ' + fullName(p) + ' » (liste)'));
-    none.forEach(r => items.push('Absent de la liste : ' + cl(r.Prenom + ' ' + r.Nom)));
-    items.push(sansCreneau + ' fiche(s) de la liste sans créneau dans ce planning.');
-    const total = exact.length + approx.length;
-    const ok = await ask({ title: 'Importer le planning ?', message: total + ' fiche(s) recevront leur date et leur heure de passage (une copie de sécurité est conservée).', items, buttons: [{ label: 'Appliquer', value: true, kind: 'btn-primary' }, { label: 'Annuler', value: false, kind: 'btn-text' }] });
-    if (!ok) return;
-    snapshot('avant import du planning');
-    let n = 0;
-    exact.concat(approx).forEach(([p, r]) => { if (!r.Date) return; p.Date = r.Date; if (r.Heure) p.Heure = r.Heure; n++; });
-    saveData(); clearSearch(); render(); refreshAdmin();
-    adminMsg('Planning importé : ' + n + ' fiche(s) mise(s) à jour.');
-  } catch (err) {
-    await info('Lecture impossible', 'Le fichier n\'a pas pu être lu : ' + (err && err.message ? err.message : err));
-  }
-});
 
 /* ====================== Restauration JSON et copie de sécurité ====================== */
 $('btn-import-json').addEventListener('click', () => { $('fileJson').value = ''; $('fileJson').click(); });
@@ -1145,7 +1105,7 @@ const NS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationsh
 function colLetter(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
 function colIdx(ref) { const L = /^[A-Z]+/.exec(ref)[0]; let n = 0; for (const ch of L) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; }
 const xmlEsc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-function setCellText(doc, rowEl, col, text) {
+function setCellText(doc, rowEl, col, text, num) {
   const ref = colLetter(col) + rowEl.getAttribute('r');
   let cEl = null, before = null, left = null;
   Array.from(rowEl.getElementsByTagName('c')).forEach(c => {
@@ -1159,7 +1119,12 @@ function setCellText(doc, rowEl, col, text) {
   }
   while (cEl.firstChild) cEl.removeChild(cEl.firstChild);
   cEl.removeAttribute('t');
-  if (text !== '') {
+  if (text !== '' && num) {
+    let v;
+    if (num === 'date') { const m = /^(\d{2})\.(\d{2})$/.exec(text); v = Math.round((Date.UTC(2026, +m[2] - 1, +m[1]) - Date.UTC(1899, 11, 30)) / 86400000); }
+    else { const m = /^(\d{2}):(\d{2})$/.exec(text); v = (+m[1] * 60 + +m[2]) / 1440; }
+    const ve = doc.createElementNS(NS_MAIN, 'v'); ve.textContent = String(v); cEl.appendChild(ve);
+  } else if (text !== '') {
     cEl.setAttribute('t', 'inlineStr');
     const is = doc.createElementNS(NS_MAIN, 'is'), t = doc.createElementNS(NS_MAIN, 't');
     t.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve'); t.textContent = text;
@@ -1176,7 +1141,12 @@ function adresseTexte(p) { return cl(p.Rue + (p.Numero ? ' ' + p.Numero : '')); 
 function communeTexte(p) { return cl((p.CP ? p.CP + ' ' : '') + p.Localite); }
 function changedCells(p, lay) {
   const o = p.src.o || {}, out = [];
-  const put = (f, now, same) => { if (lay[f] != null && o[f] !== undefined && !same) out.push({ f, col: lay[f], text: now }); };
+  const put = (f, now, same, num) => { if (lay[f] != null && o[f] !== undefined && !same) out.push({ f, col: lay[f], text: now, num }); };
+  put('Date', p.Date, normDate(o.Date) === p.Date, 'date');
+  put('Heure', p.Heure, normTime(o.Heure) === p.Heure, 'time');
+  put('Controle', p.valide ? 'Oui' : '', /^(oui|x|ok|1|vrai|yes)$/i.test(cl(o.Controle)) === !!p.valide);
+  const cAt = p.valide && p.valideAt ? fmtDateTime(p.valideAt) : '';
+  put('ControleAt', cAt, cl(o.ControleAt) === cAt);
   put('Nom', p.Nom, cl(o.Nom) === p.Nom);
   put('Prenom', p.Prenom, cl(o.Prenom) === p.Prenom);
   put('Mail', p.Mail, cl(o.Mail) === p.Mail);
@@ -1215,7 +1185,7 @@ function buildListeXlsx() {
     bySheet[name].forEach(p => {
       const ch = changedCells(p, lay), rowEl = rowsByR[String(p.src.row)];
       if (!ch.length || !rowEl) return;
-      ch.forEach(c => { setCellText(doc, rowEl, c.col, c.text); if (c.f === 'Mail') dropLink(doc, colLetter(c.col) + p.src.row); stats.cells++; });
+      ch.forEach(c => { setCellText(doc, rowEl, c.col, c.text, c.num); if (c.f === 'Mail') dropLink(doc, colLetter(c.col) + p.src.row); stats.cells++; });
       stats.people++; touched = true;
     });
     if (touched) files[path] = ser(doc);
@@ -1223,7 +1193,35 @@ function buildListeXlsx() {
   const added = participants.filter(p => !p.src && p.ajoute);
   const entries = order.map(k => ({ name: k, data: files[k] }));
   const ct = order.indexOf('[Content_Types].xml'); if (ct > 0) entries.unshift(entries.splice(ct, 1)[0]);
-  if (added.length && meta.first && sheetPath[meta.first] && meta.layout[meta.first] && meta.hdr) {
+  const mainLay = meta.layout[meta.first];
+  const setEntry = (path, bytes) => { const e = entries.find(x => x.name === path); if (e) e.data = bytes; files[path] = bytes; };
+  if (added.length && mainLay && mainLay.Date != null && sheetPath[meta.first] && meta.hdr) {
+    const path = sheetPath[meta.first], doc = parse(path);
+    const sd = doc.getElementsByTagName('sheetData')[0];
+    const rowsEls = Array.from(doc.getElementsByTagName('row'));
+    let rn = Math.max.apply(null, rowsEls.map(r => +r.getAttribute('r')));
+    const lastRow = rowsEls.find(r => +r.getAttribute('r') === rn), sty = {};
+    Array.from(lastRow.getElementsByTagName('c')).forEach(c => { if (c.getAttribute('s')) sty[colIdx(c.getAttribute('r'))] = c.getAttribute('s'); });
+    added.forEach(p => {
+      rn++;
+      const rowEl = doc.createElementNS(NS_MAIN, 'row'); rowEl.setAttribute('r', String(rn));
+      for (let c = 0; c < meta.hdr.length; c++) { const ce = doc.createElementNS(NS_MAIN, 'c'); ce.setAttribute('r', colLetter(c) + rn); if (sty[c]) ce.setAttribute('s', sty[c]); rowEl.appendChild(ce); }
+      sd.appendChild(rowEl);
+      const set = (f, t, num) => { if (mainLay[f] != null && t !== '') setCellText(doc, rowEl, mainLay[f], t, num); };
+      set('Date', p.Date, 'date'); set('Heure', p.Heure, 'time'); set('Nom', p.Nom); set('Prenom', p.Prenom); set('Mail', p.Mail); set('Telephone', p.Telephone);
+      if (mainLay.Numero != null) { set('Rue', p.Rue); set('Numero', p.Numero); } else set('Rue', adresseTexte(p));
+      set('CPLoc', communeTexte(p)); set('CP', p.CP); set('Localite', p.Localite);
+      set('Controle', p.valide ? 'Oui' : ''); set('ControleAt', p.valide && p.valideAt ? fmtDateTime(p.valideAt) : '');
+    });
+    const fixRef = ref => ref.replace(/(\d+)$/, String(rn));
+    const dim = doc.getElementsByTagName('dimension')[0]; if (dim) dim.setAttribute('ref', fixRef(dim.getAttribute('ref')));
+    const af = doc.getElementsByTagName('autoFilter')[0]; if (af) af.setAttribute('ref', fixRef(af.getAttribute('ref')));
+    setEntry(path, ser(doc));
+    Array.from(wbDoc.getElementsByTagName('definedName')).forEach(dn => { if (/_FilterDatabase/.test(dn.getAttribute('name') || '')) dn.textContent = dn.textContent.replace(/(\$\d+)$/, '$' + rn); });
+    setEntry('xl/workbook.xml', ser(wbDoc));
+    stats.added = added.length;
+    stats.fin = true;
+  } else if (added.length && meta.first && sheetPath[meta.first] && meta.layout[meta.first] && meta.hdr) {
     const fdoc = parse(sheetPath[meta.first]), flay = meta.layout[meta.first];
     const stylesOf = rn => { const m = {}, row = Array.from(fdoc.getElementsByTagName('row')).find(r => r.getAttribute('r') === String(rn)); if (row) Array.from(row.getElementsByTagName('c')).forEach(c => { if (c.getAttribute('s')) m[colIdx(c.getAttribute('r'))] = c.getAttribute('s'); }); return m; };
     const hs = stylesOf(meta.hdrRow || 1), bs = stylesOf((meta.hdrRow || 1) + 1);
@@ -1259,9 +1257,9 @@ function buildListeXlsx() {
 $('btn-export-liste').addEventListener('click', async () => {
   try {
     const r = buildListeXlsx();
-    if (!r) { await info('Export impossible', 'Le fichier Excel d\'origine n\'est pas mémorisé dans cet appareil. Importez d\'abord votre tableau au format .xlsx (Importer la liste), ou utilisez l\'export « suivi ».'); return; }
+    if (!r) { await info('Export impossible', 'Le fichier Excel d\'origine n\'est pas mémorisé dans cet appareil. Importez d\'abord votre planning au format .xlsx (Importer le planning), ou utilisez l\'export « suivi ».'); return; }
     const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    if (await deliver(r.blob, 'Candidats_GC_corrige_' + isoToday() + '.xlsx', mime)) { markExported(); adminMsg('Fichier généré : ' + r.stats.people + ' fiche(s) corrigée(s)' + (r.stats.added ? ', ' + r.stats.added + ' ajoutée(s) sur place (feuille « Ajoutés sur place »).' : '.')); }
+    if (await deliver(r.blob, 'Planning_mis_a_jour_' + isoToday() + '.xlsx', mime)) { markExported(); adminMsg('Fichier généré : ' + r.stats.people + ' fiche(s) corrigée(s)' + (r.stats.added ? ', ' + r.stats.added + ' ajoutée(s) sur place (' + (r.stats.fin ? 'à la fin du tableau' : 'feuille « Ajoutés sur place »') + ').' : '.')); }
   } catch (err) {
     await info('Export impossible', 'Une erreur est survenue : ' + (err && err.message ? err.message : err));
   }
