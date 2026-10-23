@@ -156,7 +156,7 @@ hr { border:0; border-top:1px solid #dbe6ef; margin:20px 0; }
   <h2 id="profile-name">Nom Prénom</h2>
   <div id="profile-notice"></div>
   <div class="profile-row"><b>Heure</b><span id="profile-time"></span></div>
-  <div class="profile-row"><b>Naissance</b><span id="profile-birth"></span></div>
+  <div class="profile-row"><b>Date de naissance</b><span id="profile-birth"></span></div>
   <div class="profile-row"><b>Téléphone</b><span id="profile-phone"></span></div>
   <div class="profile-row"><b>Email</b><span id="profile-email"></span></div>
   <div class="profile-row"><b>Adresse</b><span id="profile-address"></span></div>
@@ -975,7 +975,7 @@ function showImportPreview(res, fname) {
   const h = document.createElement('h3'); h.textContent = 'Colonnes reconnues'; h.style.marginTop = '12px'; box.appendChild(h);
   const ul = document.createElement('ul'); ul.className = 'col-list';
   [...new Set(res.recognized)].forEach(t => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }); box.appendChild(ul);
-  if (res.ignored.length) { const p = document.createElement('p'); p.className = 'help-text'; p.textContent = 'Colonnes ignorées : ' + res.ignored.join(', '); box.appendChild(p); }
+  if (res.ignored.length) { const p = document.createElement('p'); p.className = 'help-text'; p.textContent = 'Colonnes non utilisées par l\'application (conservées telles quelles dans l\'export) : ' + res.ignored.join(', '); box.appendChild(p); }
   const sel = $('import-default-date'); sel.innerHTML = '';
   const o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Laisser sans date (planning à importer)'; sel.appendChild(o0);
   VALID_DATES.forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; sel.appendChild(o); });
@@ -1223,12 +1223,20 @@ function buildListeXlsx() {
     const sd = doc.getElementsByTagName('sheetData')[0];
     const rowsEls = Array.from(doc.getElementsByTagName('row'));
     let rn = Math.max.apply(null, rowsEls.map(r => +r.getAttribute('r')));
-    const lastRow = rowsEls.find(r => +r.getAttribute('r') === rn), sty = {};
-    Array.from(lastRow.getElementsByTagName('c')).forEach(c => { if (c.getAttribute('s')) sty[colIdx(c.getAttribute('r'))] = c.getAttribute('s'); });
+    const lastNo = rn, lastRow = rowsEls.find(r => +r.getAttribute('r') === rn), sty = {}, fml = {};
+    Array.from(lastRow.getElementsByTagName('c')).forEach(c => {
+      const ci = colIdx(c.getAttribute('r'));
+      if (c.getAttribute('s')) sty[ci] = c.getAttribute('s');
+      const fe = c.getElementsByTagName('f')[0]; if (fe) fml[ci] = fe.textContent;
+    });
     added.forEach(p => {
       rn++;
       const rowEl = doc.createElementNS(NS_MAIN, 'row'); rowEl.setAttribute('r', String(rn));
-      for (let c = 0; c < meta.hdr.length; c++) { const ce = doc.createElementNS(NS_MAIN, 'c'); ce.setAttribute('r', colLetter(c) + rn); if (sty[c]) ce.setAttribute('s', sty[c]); rowEl.appendChild(ce); }
+      for (let c = 0; c < meta.hdr.length; c++) {
+        const ce = doc.createElementNS(NS_MAIN, 'c'); ce.setAttribute('r', colLetter(c) + rn); if (sty[c]) ce.setAttribute('s', sty[c]);
+        if (fml[c]) { const fe = doc.createElementNS(NS_MAIN, 'f'); fe.textContent = fml[c].replace(/([A-Z]{1,3})(\d+)/g, (m, a, b) => +b === lastNo ? a + rn : m); ce.appendChild(fe); }
+        rowEl.appendChild(ce);
+      }
       sd.appendChild(rowEl);
       const set = (f, t, num) => { if (mainLay[f] != null && t !== '') setCellText(doc, rowEl, mainLay[f], t, num); };
       set('Date', p.Date, 'date'); set('Heure', p.Heure, 'time'); set('Naissance', p.Naissance, 'birth'); set('Nom', p.Nom); set('Prenom', p.Prenom); set('Mail', p.Mail); set('Telephone', p.Telephone);
@@ -1239,6 +1247,8 @@ function buildListeXlsx() {
     const fixRef = ref => ref.replace(/(\d+)$/, String(rn));
     const dim = doc.getElementsByTagName('dimension')[0]; if (dim) dim.setAttribute('ref', fixRef(dim.getAttribute('ref')));
     const af = doc.getElementsByTagName('autoFilter')[0]; if (af) af.setAttribute('ref', fixRef(af.getAttribute('ref')));
+    Array.from(doc.getElementsByTagName('dataValidation')).forEach(dv => dv.setAttribute('sqref', dv.getAttribute('sqref').replace(/(:[A-Z]+)(\d+)/g, (m, a, b) => +b === lastNo ? a + rn : m)));
+    Array.from(doc.getElementsByTagName('conditionalFormatting')).forEach(cf => cf.setAttribute('sqref', cf.getAttribute('sqref').replace(/(:[A-Z]+)(\d+)/g, (m, a, b) => +b === lastNo ? a + rn : m)));
     setEntry(path, ser(doc));
     Array.from(wbDoc.getElementsByTagName('definedName')).forEach(dn => { if (/_FilterDatabase/.test(dn.getAttribute('name') || '')) dn.textContent = dn.textContent.replace(/(\$\d+)$/, '$' + rn); });
     setEntry('xl/workbook.xml', ser(wbDoc));
