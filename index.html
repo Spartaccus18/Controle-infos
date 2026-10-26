@@ -190,6 +190,7 @@ label input[type="time"]::-webkit-datetime-edit { padding:0; }
     <button id="btn-validate" class="btn-primary">Confirmer les informations</button>
     <button id="btn-attach" class="btn-primary" style="display:none"></button>
     <button id="btn-edit" class="btn-secondary">Modifier les infos</button>
+    <button id="btn-del-profile" class="btn-danger" style="display:none">Supprimer cette fiche (ajoutée sur place)</button>
     <button id="btn-close-profile" class="btn-text">Fermer</button>
   </div>
 </div></div>
@@ -437,7 +438,7 @@ function sanitize(o) {
     valide: !!o.valide, valideAt: o.valideAt || null,
     ajoute: !!o.ajoute, modifie: !!o.modifie,
     champsModifies: Array.isArray(o.champsModifies) ? o.champsModifies.map(cl).filter(Boolean) : [],
-    video: sanVideo(o.video),
+    video: sanVideo(o.video), vsrv: sanVideo(o.vsrv),
     src: (o.src && typeof o.src === 'object' && !Array.isArray(o.src)) ? o.src : null
   };
   if (!p.valide) p.valideAt = null;
@@ -600,12 +601,17 @@ async function pushQueue() {
 }
 const ARROND_OF = { 'Yverdon': 'Nord-Vaudois' };
 const arrondOf = l => ARROND_OF[cl(l)] || cl(l);
+/* Fiches ajoutées sur place puis supprimées : on ne les laisse pas revenir tant que le site ne les a pas retirées */
+function deletedCids() { try { const a = JSON.parse(store.get('accueil_deleted') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function setDeletedCids(a) { store.set('accueil_deleted', JSON.stringify(a)); }
 function mergeRoster(data) {
   if (!data || !Array.isArray(data.candidates)) return;
   const toDM = iso => /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.slice(8, 10) + '.' + iso.slice(5, 7) : '';
   const byCid = new Map(participants.filter(p => p.cid).map(p => [p.cid, p]));
   const seen = new Set();
+  const gone = deletedCids(); setDeletedCids(gone.filter(c => data.candidates.some(s => s.id === c)));
   data.candidates.forEach(s => {
+    if (gone.includes(s.id)) return;
     let p = byCid.get(s.id);
     if (!p) {   // fiche importée d'un Excel avant la synchronisation : rattachement par le nom
       const k = tkey(s.prenom + ' ' + s.nom);
@@ -828,6 +834,7 @@ function openProfile(id) {
   currentId = id;
   const p = participants.find(x => x.id === id);
   if (!p) return;
+  $('btn-del-profile').style.display = p.ajoute ? '' : 'none';
   $('profile-name').textContent = fullName(p);
   const notice = $('profile-notice'); notice.innerHTML = '';
   const other = p.Date !== activeDate;
@@ -898,6 +905,19 @@ function fillForm(p) {
   FIELDS.forEach(f => { $(f[0]).value = p[f[1]] || ''; });
   clearErrors(); editInitial = formSnapshot();
 }
+$('btn-del-profile').addEventListener('click', async () => {
+  const p = participants.find(x => x.id === currentId); if (!p || !p.ajoute) return;
+  const r = await ask({ title: 'Supprimer cette fiche ?', message: '« ' + fullName(p) + ' » a été ajoutée sur place. La fiche sera supprimée ici' + (sync.key ? (p.cid ? ' et sur le site (avec ses vidéos).' : ' ; comme elle n\'a pas encore été envoyée au site, rien ne sera envoyé.') : '.'), buttons: [{ label: 'Supprimer', value: true, kind: 'btn-danger' }, { label: 'Annuler', value: false, kind: 'btn-text' }] });
+  if (!r) return;
+  snapshot('avant suppression de ' + fullName(p));
+  const q = syncQueue().filter(o => o.local_id !== p.id); // opérations pas encore envoyées : abandonnées
+  if (p.cid) { q.push({ op_id: newId(), at: new Date().toISOString(), cid: p.cid, local_id: p.id, delete: true }); setDeletedCids(deletedCids().concat([p.cid])); }
+  setQueue(q);
+  participants = participants.filter(x => x.id !== p.id);
+  saveData(false); closeModal('profile-modal'); render(); refreshAdmin();
+  if (p.cid) scheduleSync(300);
+  toast('Fiche supprimée');
+});
 $('btn-edit').addEventListener('click', () => {
   const p = participants.find(x => x.id === currentId); if (!p) return;
   editMode = 'edit'; $('edit-title').textContent = 'Modifier les informations';
@@ -1241,7 +1261,13 @@ function matchRecap(list) {
 }
 function mergeVideo(p, v) {
   const cur = sanVideo(p.video), nw = Object.assign({}, cur); let ch = 0;
-  VSTEPS.forEach(k => { const a = v[k]; if (!a) return; const b = (a === 'Oui' || !cur[k]) ? a : cur[k]; if (b !== cur[k]) { nw[k] = b; ch++; } });
+  const prev = sanVideo(p.vsrv);   // dernier état reçu du site : une prise retirée du site (vidéo supprimée sur la borne) est retirée aussi ici
+  VSTEPS.forEach(k => {
+    const a = v[k];
+    if (!a) { if (prev[k] && cur[k] === prev[k]) { nw[k] = ''; ch++; } return; }
+    const b = (a === 'Oui' || !cur[k]) ? a : cur[k]; if (b !== cur[k]) { nw[k] = b; ch++; }
+  });
+  p.vsrv = sanVideo(v);
   if (ch) p.video = nw;
   return ch;
 }
@@ -1647,7 +1673,7 @@ $('btn-reset-day').addEventListener('click', async () => {
   if (!r) return;
   snapshot('avant effacement du ' + activeDate);
   participants = participants.filter(p => p.Date !== activeDate);
-  saveData(); render(); refreshAdmin(); adminMsg('Les données de la journée ont été effacées.');
+  saveData(); store.set(K.CH, '0'); renderBanners(); render(); refreshAdmin(); adminMsg('Les données de la journée ont été effacées.');
 });
 $('btn-reset-all').addEventListener('click', async () => {
   const r1 = await ask({ title: 'Tout effacer ?', message: 'Les ' + participants.length + ' fiches de toutes les dates seront supprimées. Avez-vous exporté les données ?', buttons: [{ label: 'Continuer', value: true, kind: 'btn-primary' }, { label: 'Annuler', value: false, kind: 'btn-text' }] });
@@ -1655,7 +1681,7 @@ $('btn-reset-all').addEventListener('click', async () => {
   const r2 = await ask({ title: 'Dernière confirmation', message: 'Saisissez EFFACER pour supprimer définitivement toutes les données (une copie de sécurité reste disponible dans le menu).', input: { expected: 'EFFACER', placeholder: 'EFFACER' }, buttons: [{ label: 'Tout effacer', value: true, kind: 'btn-primary', needsInput: true }, { label: 'Annuler', value: false, kind: 'btn-text' }] });
   if (!r2) return;
   snapshot('avant effacement total');
-  participants = []; store.del(K.XLS); store.del(K.LAY); saveData(); clearSearch(); render(); refreshAdmin(); adminMsg('Toutes les données ont été effacées.');
+  participants = []; store.del(K.XLS); store.del(K.LAY); saveData(); store.set(K.CH, '0'); clearSearch(); render(); refreshAdmin(); adminMsg('Toutes les données ont été effacées.');
 });
 
 /* ====================== Verrouillage d'écran, clavier, divers ====================== */
