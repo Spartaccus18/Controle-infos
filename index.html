@@ -497,7 +497,7 @@ function pendingFor(p) {
 function readKeyFromHash() {
   const m = /[#&]cle=([^&]+)/.exec(location.hash || '');
   if (!m) return;
-  sync.key = decodeURIComponent(m[1]).trim(); store.set(K.KEY, sync.key); sync.authErr = false;
+  sync.key = decodeURIComponent(m[1]).trim(); store.set(K.KEY, sync.key); sync.authErr = false; sync.justLinked = true;
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
 }
 function syncStatsText() {
@@ -533,6 +533,7 @@ async function runSync() {
       mergeRoster(await api('/roster'));
     }
     sync.last = new Date().toISOString(); store.set(K.SYNC, sync.last); sync.err = '';
+    if (sync.justLinked) { sync.justLinked = false; info('Application reliée au dashboard ✔', 'La liste a été reçue du dashboard PLR Vaud. Les présences et les corrections seront envoyées automatiquement.'); }
   } catch (e) {
     sync.err = e && e.name === 'AbortError' ? 'délai dépassé' : (e && e.message) || String(e);
   } finally {
@@ -592,7 +593,7 @@ function refreshSyncAdmin() {
   const n = syncQueue().length;
   if (!sync.key) { el.textContent = 'Non connecté au dashboard : collez la clé iPad ci-dessous (ou ouvrez le lien donné dans l\'onglet Shooting).'; el.className = 'help-text warn'; return; }
   el.className = 'help-text' + (sync.err || sync.authErr ? ' warn' : '');
-  el.textContent = (sync.authErr ? 'Clé refusée par le dashboard. ' : sync.err ? 'Dernière tentative échouée (' + sync.err + '). ' : '') +
+  el.textContent = (!sync.authErr && !sync.err && sync.last ? '✔ Relié au dashboard. ' : '') + (sync.authErr ? 'Clé refusée par le dashboard. ' : sync.err ? 'Dernière tentative échouée (' + sync.err + '). ' : '') +
     (sync.last ? 'Dernière synchronisation : ' + fmtDateTime(sync.last) + '. ' : 'Jamais synchronisé. ') +
     (n ? n + ' modification(s) en attente d\'envoi.' : 'Tout est envoyé.');
 }
@@ -999,7 +1000,10 @@ $('btn-sync-key').addEventListener('click', () => {
   sync.key = cl($('sync-key').value); sync.authErr = false; sync.err = '';
   if (sync.key) store.set(K.KEY, sync.key); else store.del(K.KEY);
   refreshSyncAdmin(); renderBanners(); render();
-  if (sync.key) { adminMsg('Clé enregistrée : synchronisation en cours.'); scheduleSync(0); } else adminMsg('Synchronisation désactivée.');
+  if (sync.key) {
+    adminMsg('Clé enregistrée : vérification de la connexion…');
+    runSync().then(() => adminMsg(sync.authErr ? '⚠ Clé refusée par le dashboard : recopiez-la depuis l\'onglet Shooting.' : sync.err ? '⚠ Connexion impossible : ' + sync.err : '✔ Relié au dashboard : liste reçue.'));
+  } else adminMsg('Synchronisation désactivée.');
 });
 $('chk-lock').addEventListener('change', e => { store.set(K.LOCK, e.target.checked ? '1' : '0'); resetLockTimer(); });
 
