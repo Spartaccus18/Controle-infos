@@ -576,7 +576,7 @@ async function pushQueue() {
   saveData(false);
   if (rest.length && gone.size) await pushQueue();
 }
-const ARROND_OF = { 'Yverdon': 'Nord-Vaudois', 'Lausanne-Ville': 'Lausanne' };
+const ARROND_OF = { 'Yverdon': 'Nord-Vaudois' };
 const arrondOf = l => ARROND_OF[cl(l)] || cl(l);
 function mergeRoster(data) {
   if (!data || !Array.isArray(data.candidates)) return;
