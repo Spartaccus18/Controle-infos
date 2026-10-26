@@ -580,6 +580,7 @@ async function runSync() {
   } finally {
     sync.busy = false;
     renderBanners(); render(); refreshSyncAdmin();
+    if ($('admin-modal').classList.contains('active')) refreshAdmin();   // compteurs par date à jour même si le menu était déjà ouvert
     if (sync.again) { sync.again = false; scheduleSync(200); }
     else if (syncQueue().length) scheduleSync(20000);
   }
