@@ -278,7 +278,7 @@ label input[type="time"]::-webkit-datetime-edit { padding:0; }
   <button id="btn-reset-all" class="btn-danger" style="width:100%">Tout effacer</button>
   <hr>
   <button id="btn-close-admin" class="btn-text" style="width:100%">Fermer le menu</button>
-  <p class="help-text" id="app-version" style="text-align:center;margin-top:10px">Version 30 · 29.10.2026</p>
+  <p class="help-text" id="app-version" style="text-align:center;margin-top:10px">Version 31 · 29.10.2026</p>
 </div></div>
 
 <!-- Aperçu import -->
@@ -1528,7 +1528,7 @@ function u8ToB64(u) { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s +
 function b64ToU8(b) { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
 const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
 function crc32(u) { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC_T[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
-function zipStore(entries) {
+function zipBytes(entries) {
   const enc = new TextEncoder(), parts = [], central = []; let off = 0;
   const u16 = n => [n & 255, (n >> 8) & 255], u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
   entries.forEach(e => {
@@ -1539,8 +1539,10 @@ function zipStore(entries) {
   });
   const cdSize = central.reduce((a, b) => a + b.length, 0);
   const end = new Uint8Array([0x50, 0x4b, 5, 6, ...u16(0), ...u16(0), ...u16(entries.length), ...u16(entries.length), ...u32(cdSize), ...u32(off), ...u16(0)]);
-  return new Blob(parts.concat(central, [end]), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  return parts.concat(central, [end]);
 }
+function zipFlat(entries) { const ps = zipBytes(entries); const n = ps.reduce((a, b) => a + b.length, 0), o = new Uint8Array(n); let k = 0; ps.forEach(x => { o.set(x, k); k += x.length; }); return o; }
+function zipStore(entries) { return new Blob(zipBytes(entries), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }); }
 const NS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const NS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 function colLetter(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
@@ -1615,11 +1617,96 @@ function templateSource() {
   const r = parseWorkbook(XLSX.read(b64ToU8(TEMPLATE_XLSX), { type: 'array' }));
   return { b64: TEMPLATE_XLSX, meta: { layout: r.layout, hdr: r.hdr, hdrRow: r.hdrRow, first: r.firstSheet } };
 }
+/* Ancien planning (jusqu'à la v28) : cinq colonnes « Vidéo … » et « Vidéos tournées ». Converti automatiquement vers « Vidéo », « Heure vidéo », « Présence », « Remarques » (mêmes lignes, même mise en forme), sans réimporter le fichier. */
+const xmlUnesc = t => String(t).replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d)).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+function isLegacyHdr(h) { return Array.isArray(h) && h.length === 23 && /^video q1/i.test(norm(h[16])) && /^video pose/i.test(norm(h[20])) && /^videos tournees/i.test(norm(h[21])) && /^remarques?$/i.test(norm(h[22])); }
+function legacyRowValues(o) {   // même règle que la conversion du fichier : Oui si une ancienne case est « Oui », Non si refus ou contrôlé sans vidéo
+  const old = ['V1', 'V2', 'V3', 'V4', 'V0'].map(k => cl(o[k]));
+  const ctl = /^(oui|x|ok|1|vrai|yes)$/i.test(cl(o.Controle));
+  return { Video: old.some(x => /^oui/i.test(x)) ? 'Oui' : (old.some(x => /^refus/i.test(x)) || ctl) ? 'Non' : '', VideoAt: '', Presence: ctl ? 'Contrôlé' : '' };
+}
+function migrateLegacyXlsx(b64, meta) {
+  if (!meta || !meta.layout || !isLegacyHdr(meta.hdr)) return null;
+  try {
+    const wb = XLSX.read(b64ToU8(b64), { type: 'array', bookFiles: true });
+    const dec = new TextDecoder(), enc = new TextEncoder();
+    const files = {}, order = [];
+    Object.keys(wb.files).forEach(k => { if (!k || k.charCodeAt(0) < 32 || k.endsWith('/')) return; const c = wb.files[k].content; files[k] = typeof c === 'string' ? enc.encode(c) : c; order.push(k); });
+    const parse = path => new DOMParser().parseFromString(dec.decode(files[path]), 'application/xml');
+    const wbDoc = parse('xl/workbook.xml'), relDoc = parse('xl/_rels/workbook.xml.rels');
+    const rels = {}; Array.from(relDoc.getElementsByTagName('Relationship')).forEach(r => { rels[r.getAttribute('Id')] = r.getAttribute('Target'); });
+    const sheets = Array.from(wbDoc.getElementsByTagName('sheet'));
+    if (sheets.length !== 1) return null;   // structure inattendue : on laisse le modèle intégré faire le travail
+    const t = rels[sheets[0].getAttributeNS(NS_REL, 'id')]; if (!t) return null;
+    const path = t.charAt(0) === '/' ? t.slice(1) : 'xl/' + t;
+    if (sheets[0].getAttribute('name') !== meta.first) return null;
+    const ss = files['xl/sharedStrings.xml'] ? (dec.decode(files['xl/sharedStrings.xml']).match(/<si>[\s\S]*?<\/si>/g) || []).map(x => xmlUnesc(x.replace(/<[^>]+>/g, ''))) : [];
+    let sh = dec.decode(files[path]);
+    const cre = /<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    const txt = (a, inner) => { const t0 = (/\bt="(\w+)"/.exec(a) || [])[1] || ''; if (t0 === 's') { const v = /<v>(\d+)<\/v>/.exec(inner || ''); return v ? ss[+v[1]] : ''; } if (t0 === 'inlineStr') return xmlUnesc((inner || '').replace(/<[^>]+>/g, '')); const v = /<v>([\s\S]*?)<\/v>/.exec(inner || ''); return v ? xmlUnesc(v[1]) : ''; };
+    const sty = a => { const m = /\bs="(\d+)"/.exec(a); return m ? m[1] : null; };
+    const mk = (ref, st, tx) => '<c r="' + ref + '"' + (st ? ' s="' + st + '"' : '') + (tx === '' ? '/>' : ' t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(tx) + '</t></is></c>');
+    let last = 1;
+    sh = sh.replace(/<row([^>]*)>([\s\S]*?)<\/row>/g, (mm, ra, body) => {
+      const rn = +/\br="(\d+)"/.exec(ra)[1]; last = Math.max(last, rn);
+      const cells = {}, raw = {}; let m;
+      cre.lastIndex = 0;
+      while ((m = cre.exec(body))) { cells[m[1]] = [m[3], m[4] || '']; raw[m[1]] = m[0]; }
+      if (!cells.Q || !cells.W) throw new Error('colonnes inattendues');
+      const keep = 'ABCDEFGHIJKLMNOP'.split('').filter(c => cells[c]).map(c => raw[c]).join('');
+      let nw;
+      if (rn === 1) { const h = sty(cells.Q[0]); nw = mk('Q1', h, 'Vidéo') + mk('R1', h, 'Heure vidéo') + mk('S1', h, 'Présence') + mk('T1', sty(cells.W[0]), txt(cells.W[0], cells.W[1]) || 'Remarques'); }
+      else {
+        const old = 'QRSTU'.split('').map(c => cells[c] ? txt(cells[c][0], cells[c][1]) : '');
+        const ctl = /^(oui|x|ok|1|vrai|yes)$/i.test((cells.O ? txt(cells.O[0], cells.O[1]) : '').trim());
+        const video = old.some(x => /^oui/i.test(x)) ? 'Oui' : (old.some(x => /^refus/i.test(x)) || ctl) ? 'Non' : '';
+        const sQ = sty(cells.Q[0]);
+        nw = mk('Q' + rn, sQ, video) + mk('R' + rn, sQ, '') + mk('S' + rn, sQ, ctl ? 'Contrôlé' : '') + mk('T' + rn, sty(cells.W[0]), txt(cells.W[0], cells.W[1]));
+      }
+      return '<row' + ra.replace(/\s*spans="[^"]*"/, '') + '>' + keep + nw + '</row>';
+    });
+    sh = sh.replace(/<dimension ref="A1:W(\d+)"/, '<dimension ref="A1:T$1"').replace(/<autoFilter ref="A1:W(\d+)"/, '<autoFilter ref="A1:T$1"');
+    sh = sh.replace(/<col [^>]*?\bmin="17"[^>]*?\/>/, '<col min="17" max="17" width="14" customWidth="1"/><col min="18" max="18" width="20" customWidth="1"/><col min="19" max="19" width="22" customWidth="1"/>').replace(/<col [^>]*?\bmin="22"[^>]*?\/>/, '').replace(/<col [^>]*?\bmin="23"[^>]*?\/>/, '<col min="20" max="20" width="70" customWidth="1"/>');
+    const cfm = /<conditionalFormatting[\s\S]*?<\/conditionalFormatting>/.exec(sh);
+    if (cfm) {
+      const rules = cfm[0].match(/<cfRule[\s\S]*?<\/cfRule>/g) || [];
+      const dx = tok => { const r = rules.find(x => x.includes(tok)); const m2 = r && /dxfId="(\d+)"/.exec(r); return m2 ? m2[1] : '0'; };
+      const dOui = dx('"Oui"'), dRej = dx('"Rej"'), dNon = dx('="Non"');
+      const ncf = '<conditionalFormatting sqref="Q2:Q' + last + '"><cfRule type="expression" priority="1" dxfId="' + dOui + '"><formula>Q2="Oui"</formula></cfRule><cfRule type="expression" priority="2" dxfId="' + dNon + '"><formula>Q2="Non"</formula></cfRule></conditionalFormatting>' +
+        '<conditionalFormatting sqref="S2:S' + last + '"><cfRule type="expression" priority="3" dxfId="' + dRej + '"><formula>LEFT(S2,4)="Pass"</formula></cfRule><cfRule type="expression" priority="4" dxfId="' + dNon + '"><formula>S2="Absent"</formula></cfRule></conditionalFormatting>';
+      sh = sh.replace(cfm[0], ncf);
+    }
+    sh = sh.replace(/<dataValidations[\s\S]*?<\/dataValidations>/, '<dataValidations count="1"><dataValidation sqref="Q2:Q' + last + '" showDropDown="0" showInputMessage="0" showErrorMessage="0" allowBlank="1" type="list"><formula1>"Oui,Non"</formula1></dataValidation></dataValidations>');
+    files[path] = enc.encode(sh);
+    let wbx = dec.decode(files['xl/workbook.xml']).replace(/(_FilterDatabase[^>]*>[^<]*?)\$W\$(\d+)/, '$1$T$$$2');
+    files['xl/workbook.xml'] = enc.encode(wbx);
+    if (files['xl/calcChain.xml']) {
+      delete files['xl/calcChain.xml']; order.splice(order.indexOf('xl/calcChain.xml'), 1);
+      files['[Content_Types].xml'] = enc.encode(dec.decode(files['[Content_Types].xml']).replace(/<Override[^>]*calcChain[^>]*\/>/, ''));
+      files['xl/_rels/workbook.xml.rels'] = enc.encode(dec.decode(files['xl/_rels/workbook.xml.rels']).replace(/<Relationship [^>]*calcChain[^>]*\/>/, ''));
+    }
+    const entries = order.map(k => ({ name: k, data: files[k] }));
+    const ct = order.indexOf('[Content_Types].xml'); if (ct > 0) entries.unshift(entries.splice(ct, 1)[0]);
+    const lay = {}; Object.keys(meta.layout[meta.first] || {}).forEach(f => { const c = meta.layout[meta.first][f]; if (c < 16) lay[f] = c; });
+    lay.Video = 16; lay.VideoAt = 17; lay.Presence = 18; lay.Remarque = 19;
+    const nmeta = { layout: Object.assign({}, meta.layout, { [meta.first]: lay }), hdr: meta.hdr.slice(0, 16).concat(['Vidéo', 'Heure vidéo', 'Présence', 'Remarques']), hdrRow: meta.hdrRow, first: meta.first };
+    return { entries, meta: nmeta };
+  } catch (e) { return null; }
+}
 function buildListeXlsx() {
   let b64 = store.get(K.XLS), meta = null, tpl = false;
   try { meta = JSON.parse(store.get(K.LAY) || 'null'); } catch (e) {}
   const t0 = templateSource();
   // Sans Excel mémorisé, ou si celui-ci n'a pas exactement la structure du planning actuel : modèle intégré
+  if (b64 && meta && meta.layout && JSON.stringify(meta.hdr) !== JSON.stringify(t0.meta.hdr)) {
+    const mg = migrateLegacyXlsx(b64, meta);   // ancien planning : conversion automatique, sans réimport
+    if (mg) {
+      b64 = u8ToB64(zipFlat(mg.entries)); meta = mg.meta;
+      store.set(K.XLS, b64); store.set(K.LAY, JSON.stringify(meta));
+      participants.forEach(p => { if (p.src && p.src.o) Object.assign(p.src.o, legacyRowValues(p.src.o)); });
+      saveData(false);
+    }
+  }
   if (!b64 || !meta || !meta.layout || JSON.stringify(meta.hdr) !== JSON.stringify(t0.meta.hdr)) { b64 = t0.b64; meta = t0.meta; tpl = true; }
   const wb = XLSX.read(b64ToU8(b64), { type: 'array', bookFiles: true });
   const dec = new TextDecoder(), enc = new TextEncoder();
