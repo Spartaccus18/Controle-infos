@@ -278,7 +278,7 @@ label input[type="time"]::-webkit-datetime-edit { padding:0; }
   <button id="btn-reset-all" class="btn-danger" style="width:100%">Tout effacer</button>
   <hr>
   <button id="btn-close-admin" class="btn-text" style="width:100%">Fermer le menu</button>
-  <p class="help-text" id="app-version" style="text-align:center;margin-top:10px">Version 29 · 29.10.2026</p>
+  <p class="help-text" id="app-version" style="text-align:center;margin-top:10px">Version 30 · 29.10.2026</p>
 </div></div>
 
 <!-- Aperçu import -->
@@ -629,6 +629,8 @@ const arrondOf = l => ARROND_OF[cl(l)] || cl(l);
 /* Fiches ajoutées sur place puis supprimées : on ne les laisse pas revenir tant que le site ne les a pas retirées */
 function deletedCids() { try { const a = JSON.parse(store.get('accueil_deleted') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function setDeletedCids(a) { store.set('accueil_deleted', JSON.stringify(a)); }
+/* Heures du dashboard : le serveur travaille en UTC et écrit parfois sans fuseau (« 2026-10-27T06:40:00 ») : sans « Z », le navigateur les lirait comme heure suisse, une heure trop tôt */
+const srvDate = t => { t = String(t || ''); return new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : t + 'Z'); };
 function mergeRoster(data) {
   if (!data || !Array.isArray(data.candidates)) return;
   const toDM = iso => /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.slice(8, 10) + '.' + iso.slice(5, 7) : '';
@@ -653,11 +655,11 @@ function mergeRoster(data) {
       if ((k === 'Date' || k === 'Heure') && (!srv[k] || p.champsModifies.includes(k === 'Date' ? 'Date' : 'Heure'))) return;
       p[k] = srv[k];
     });
-    if (!pf.has('valide')) { p.valide = !!s.checked_in_at; p.valideAt = s.checked_in_at ? new Date(s.checked_in_at).toISOString() : null; }
+    if (!pf.has('valide')) { p.valide = !!s.checked_in_at; p.valideAt = s.checked_in_at ? srvDate(s.checked_in_at).toISOString() : null; }
     if (s.video) mergeVideo(p, s.video);
     if (!pf.has('video')) {   // vidéo tournée / refusée : enregistrée ici ou sur le site
       if (s.video_refus !== undefined) p.refus = !!s.video_refus;
-      if (s.video_tourne_at !== undefined) { p.tourne = !!s.video_tourne_at; p.tourneAt = s.video_tourne_at ? new Date(s.video_tourne_at).toISOString() : null; }
+      if (s.video_tourne_at !== undefined) { p.tourne = !!s.video_tourne_at; p.tourneAt = s.video_tourne_at ? srvDate(s.video_tourne_at).toISOString() : null; }
     }
     if (!pf.has('passe') && s.passe !== undefined) p.passe = !!s.passe && !p.valide;
     seen.add(p.id);
