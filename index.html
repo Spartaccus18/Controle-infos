@@ -278,7 +278,7 @@ label input[type="time"]::-webkit-datetime-edit { padding:0; }
   <button id="btn-reset-all" class="btn-danger" style="width:100%">Tout effacer</button>
   <hr>
   <button id="btn-close-admin" class="btn-text" style="width:100%">Fermer le menu</button>
-  <p class="help-text" id="app-version" style="text-align:center;margin-top:10px">Version 32 · 30.10.2026</p>
+  <p class="help-text" id="app-version" style="text-align:center;margin-top:10px">Version 33 · 30.10.2026</p>
 </div></div>
 
 <!-- Aperçu import -->
@@ -898,10 +898,10 @@ function setSuivi(p, what) {
   const base = { cid: p.cid || null, local_id: p.id };
   let msg = '';
   if (what === 'tourne') { p.tourne = true; p.tourneAt = new Date().toISOString(); p.refus = false; if (p.absent) { p.absent = false; queueOp({ cid: p.cid || null, local_id: p.id, absent: false }); } queueOp(Object.assign(base, { video: 'tourne', video_at: p.tourneAt })); msg = 'Vidéo tournée enregistrée'; }
-  else if (what === 'refus') { p.refus = true; p.tourne = false; p.tourneAt = null; queueOp(Object.assign(base, { video: 'refus' })); msg = 'Vidéo refusée enregistrée'; }
+  else if (what === 'refus') { p.refus = true; p.tourne = false; p.tourneAt = null; if (p.absent) { p.absent = false; queueOp({ cid: p.cid || null, local_id: p.id, absent: false }); } queueOp(Object.assign(base, { video: 'refus' })); msg = 'Vidéo refusée enregistrée'; }
   else if (what === 'aucune') { p.refus = false; p.tourne = false; p.tourneAt = null; queueOp(Object.assign(base, { video: 'aucune' })); msg = 'Vidéo : état effacé'; }
   else if (what === 'passe') { p.passe = true; if (p.absent) { p.absent = false; queueOp({ cid: p.cid || null, local_id: p.id, absent: false }); } queueOp(Object.assign(base, { passe: true })); msg = 'Passé, non contrôlé enregistré'; }
-  else if (what === 'absent') { p.absent = true; p.passe = false; queueOp(Object.assign(base, { absent: true, passe: false })); msg = 'Absent enregistré'; }
+  else if (what === 'absent') { p.absent = true; p.passe = false; if (p.tourne || p.refus) { p.tourne = false; p.refus = false; p.tourneAt = null; queueOp({ cid: p.cid || null, local_id: p.id, video: 'aucune' }); } queueOp(Object.assign(base, { absent: true, passe: false })); msg = 'Absent enregistré'; }
   else if (what === 'nonabsent') { p.absent = false; queueOp(Object.assign(base, { absent: false })); msg = 'Absent : effacé'; }
   else if (what === 'nonpasse') { p.passe = false; queueOp(Object.assign(base, { passe: false })); msg = 'Passé, non contrôlé : effacé'; }
   saveData(); closeModal('profile-modal'); render();
