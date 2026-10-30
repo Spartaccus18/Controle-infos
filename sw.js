@@ -1,6 +1,6 @@
 /* Service worker facultatif : permet d'ouvrir l'application sans réseau une fois chargée une première fois.
    Les appels au dashboard (autre domaine) ne passent jamais par le cache : données personnelles. */
-const CACHE = 'accueil-shooting-v4';
+const CACHE = 'accueil-shooting-v5';
 self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./'])).catch(() => {}));

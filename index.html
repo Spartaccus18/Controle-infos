@@ -278,7 +278,7 @@ label input[type="time"]::-webkit-datetime-edit { padding:0; }
   <button id="btn-reset-all" class="btn-danger" style="width:100%">Tout effacer</button>
   <hr>
   <button id="btn-close-admin" class="btn-text" style="width:100%">Fermer le menu</button>
-  <p class="help-text" id="app-version" style="text-align:center;margin-top:10px">Version 31 · 29.10.2026</p>
+  <p class="help-text" id="app-version" style="text-align:center;margin-top:10px">Version 32 · 30.10.2026</p>
 </div></div>
 
 <!-- Aperçu import -->
@@ -441,6 +441,7 @@ function videoCell(p) { return videoOui(p) ? 'Oui' : (p.refus || p.valide || p.p
 function videoAtText(p) { return p.tourne && p.tourneAt ? fmtDateTime(p.tourneAt) : ''; }
 function presenceCell(p) {
   if (p.valide) return 'Contrôlé';
+  if (p.absent) return 'Absent';
   if (p.passe) return 'Passé, non contrôlé';
   const z = zp(new Date());
   if (p.Date && /^\d{2}\.\d{2}$/.test(p.Date) && (+p.Date.slice(3) * 100 + +p.Date.slice(0, 2)) < z.mo * 100 + z.d) return 'Absent';
@@ -459,11 +460,12 @@ function sanitize(o) {
     ajoute: !!o.ajoute, modifie: !!o.modifie,
     champsModifies: Array.isArray(o.champsModifies) ? o.champsModifies.map(cl).filter(Boolean) : [],
     video: sanVideo(o.video), vsrv: sanVideo(o.vsrv), refus: !!o.refus,
-    tourne: !!o.tourne, tourneAt: o.tourne && o.tourneAt ? o.tourneAt : null, passe: !!o.passe,
+    tourne: !!o.tourne, tourneAt: o.tourne && o.tourneAt ? o.tourneAt : null, passe: !!o.passe, absent: !!o.absent,
     src: (o.src && typeof o.src === 'object' && !Array.isArray(o.src)) ? o.src : null
   };
   if (!p.valide) p.valideAt = null;
-  if (p.valide) p.passe = false;
+  if (p.valide) { p.passe = false; p.absent = false; }
+  if (p.absent) p.passe = false;
   return p;
 }
 function sanitizeList(arr) {
@@ -522,6 +524,7 @@ function pendingFor(p) {
     if ('valide' in o) s.add('valide');
     if ('video' in o) s.add('video');
     if ('passe' in o) s.add('passe');
+    if ('absent' in o) s.add('absent');
     if (o.date || o.ajoute) s.add('Date');
   });
   return s;
@@ -662,6 +665,8 @@ function mergeRoster(data) {
       if (s.video_tourne_at !== undefined) { p.tourne = !!s.video_tourne_at; p.tourneAt = s.video_tourne_at ? srvDate(s.video_tourne_at).toISOString() : null; }
     }
     if (!pf.has('passe') && s.passe !== undefined) p.passe = !!s.passe && !p.valide;
+    if (!pf.has('absent') && s.absent !== undefined) p.absent = !!s.absent && !p.valide;
+    if (p.absent) p.passe = false;
     seen.add(p.id);
   });
   // Fiche retirée du dashboard : on l'enlève, sauf si elle a été touchée sur place
@@ -766,7 +771,7 @@ function tokens() { return norm(searchQuery).split(' ').filter(Boolean); }
 function matches(p, toks) { const h = norm(p.Prenom + ' ' + p.Nom); return toks.every(t => h.includes(t)); }
 function sortList(a) {
   a.sort((x, y) => {
-    const rx = x.valide ? 1 : x.passe ? 2 : 0, ry = y.valide ? 1 : y.passe ? 2 : 0;
+    const rx = x.valide ? 1 : x.passe ? 2 : x.absent ? 3 : 0, ry = y.valide ? 1 : y.passe ? 2 : y.absent ? 3 : 0;
     if (rx !== ry) return rx - ry;
     const tx = minutes(x.Heure), ty = minutes(y.Heure);
     const kx = tx == null ? 99999 : tx, ky = ty == null ? 99999 : ty;
@@ -777,11 +782,11 @@ function sortList(a) {
 }
 function makeCard(p, showDate) {
   const div = document.createElement('div');
-  div.className = 'participant-card' + (p.valide ? ' valide' : p.passe ? ' passe' : '');
+  div.className = 'participant-card' + (p.valide ? ' valide' : (p.passe || p.absent) ? ' passe' : '');
   div.addEventListener('click', () => openProfile(p.id));
   const left = document.createElement('div'); left.className = 'participant-info';
   const n = document.createElement('span'); n.className = 'participant-name'; n.textContent = fullName(p);
-  const t = document.createElement('span'); t.className = 'participant-time'; t.textContent = (p.Heure || 'heure non définie') + (p.passe && !p.valide ? ' · passé, non contrôlé' : '');
+  const t = document.createElement('span'); t.className = 'participant-time'; t.textContent = (p.Heure || 'heure non définie') + (p.passe && !p.valide ? ' · passé, non contrôlé' : '') + (p.absent && !p.valide ? ' · absent' : '');
   left.appendChild(n); left.appendChild(t);
   const right = document.createElement('div'); right.className = 'badges';
   const addBadge = (txt, cls) => { const b = document.createElement('span'); b.className = 'badge' + (cls ? ' ' + cls : ''); b.textContent = txt; right.appendChild(b); };
@@ -800,7 +805,7 @@ function render() {
   dd.append(s1, ' ', s2);
   const day = participants.filter(p => p.Date === activeDate);
   const done = day.filter(p => p.valide).length;
-  const pass = day.filter(p => p.passe && !p.valide).length;
+  const pass = day.filter(p => (p.passe || p.absent) && !p.valide).length;
   $('stats').textContent = (day.length ? done + ' / ' + day.length + ' confirmés · ' + (day.length - done - pass) + ' à venir' : '') + syncStatsText();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
   const toks = tokens();
@@ -809,7 +814,7 @@ function render() {
     list = day.filter(p => matches(p, toks));
     others = participants.filter(p => p.Date !== activeDate && matches(p, toks));
   } else {
-    list = day.filter(p => tab === 'tous' || (tab === 'avenir' ? !p.valide && !p.passe : p.valide));
+    list = day.filter(p => tab === 'tous' || (tab === 'avenir' ? !p.valide && !p.passe && !p.absent : p.valide));
   }
   sortList(list); sortList(others);
   const lc = $('participants-list'), oc = $('other-dates');
@@ -892,10 +897,12 @@ $('btn-close-profile').addEventListener('click', () => closeModal('profile-modal
 function setSuivi(p, what) {
   const base = { cid: p.cid || null, local_id: p.id };
   let msg = '';
-  if (what === 'tourne') { p.tourne = true; p.tourneAt = new Date().toISOString(); p.refus = false; queueOp(Object.assign(base, { video: 'tourne', video_at: p.tourneAt })); msg = 'Vidéo tournée enregistrée'; }
+  if (what === 'tourne') { p.tourne = true; p.tourneAt = new Date().toISOString(); p.refus = false; if (p.absent) { p.absent = false; queueOp({ cid: p.cid || null, local_id: p.id, absent: false }); } queueOp(Object.assign(base, { video: 'tourne', video_at: p.tourneAt })); msg = 'Vidéo tournée enregistrée'; }
   else if (what === 'refus') { p.refus = true; p.tourne = false; p.tourneAt = null; queueOp(Object.assign(base, { video: 'refus' })); msg = 'Vidéo refusée enregistrée'; }
   else if (what === 'aucune') { p.refus = false; p.tourne = false; p.tourneAt = null; queueOp(Object.assign(base, { video: 'aucune' })); msg = 'Vidéo : état effacé'; }
-  else if (what === 'passe') { p.passe = true; queueOp(Object.assign(base, { passe: true })); msg = 'Passé, non contrôlé enregistré'; }
+  else if (what === 'passe') { p.passe = true; if (p.absent) { p.absent = false; queueOp({ cid: p.cid || null, local_id: p.id, absent: false }); } queueOp(Object.assign(base, { passe: true })); msg = 'Passé, non contrôlé enregistré'; }
+  else if (what === 'absent') { p.absent = true; p.passe = false; queueOp(Object.assign(base, { absent: true, passe: false })); msg = 'Absent enregistré'; }
+  else if (what === 'nonabsent') { p.absent = false; queueOp(Object.assign(base, { absent: false })); msg = 'Absent : effacé'; }
   else if (what === 'nonpasse') { p.passe = false; queueOp(Object.assign(base, { passe: false })); msg = 'Passé, non contrôlé : effacé'; }
   saveData(); closeModal('profile-modal'); render();
   toast(msg);
@@ -905,6 +912,7 @@ async function openSuivi() {
   const b = [{ label: (p.tourne ? '✓ ' : '') + 'Vidéo tournée', value: 'tourne', kind: 'btn-primary' },
              { label: (p.refus ? '✓ ' : '') + 'Vidéo refusée', value: 'refus', kind: 'btn-primary' }];
   if (!p.valide) b.push(p.passe ? { label: '✓ Passé, non contrôlé (effacer)', value: 'nonpasse', kind: 'btn-secondary' } : { label: 'Passé, non contrôlé', value: 'passe', kind: 'btn-primary' });
+  if (!p.valide) b.push(p.absent ? { label: '✓ Absent (effacer)', value: 'nonabsent', kind: 'btn-secondary' } : { label: 'Absent', value: 'absent', kind: 'btn-primary' });
   if (p.tourne || p.refus) b.push({ label: 'Effacer l\'état de la vidéo', value: 'aucune', kind: 'btn-secondary' });
   b.push({ label: 'Fermer', value: null, kind: 'btn-text' });
   const r = await ask({ title: fullName(p), message: '', buttons: b });
@@ -931,6 +939,7 @@ async function setValidated(p, val) {
   p.valide = val; p.valideAt = val ? new Date().toISOString() : null;
   queueOp({ cid: p.cid || null, local_id: p.id, valide: val });
   if (val && p.passe) { p.passe = false; queueOp({ cid: p.cid || null, local_id: p.id, passe: false }); }
+  if (val && p.absent) { p.absent = false; queueOp({ cid: p.cid || null, local_id: p.id, absent: false }); }
   saveData();
 }
 $('btn-validate').addEventListener('click', async () => {
